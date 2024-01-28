@@ -8,10 +8,13 @@ U = np.random.randn(100)  # Replace this with your control input
 
 # Combine state and control input into a matrix
 data_matrix = np.vstack([X, U])
+print(data_matrix.shape)
 
 # Split the data matrix into X and Y (state and control)
 X_data = data_matrix[:, :-1]
 Y_data = data_matrix[:, 1:]
+
+print(X_data.shape)
 
 # Perform DMD
 dmd = DMD(svd_rank=-1)
