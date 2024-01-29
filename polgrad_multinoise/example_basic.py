@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # Policy gradient options
     PGO = PolicyGradientOptions(epsilon=(1e-2) * SS.Kare.size,
                                 eta=1e-3,
-                                max_iters=1000,
+                                max_iters=5000,
                                 disp_stride=1,
                                 keep_hist=True,
                                 opt_method='proximal',
@@ -33,7 +33,7 @@ if __name__ == "__main__":
                                 stepsize_method='constant',
                                 exact=True,
                                 regularizer=Regularizer('vec1'),
-                                regweight=1.0,
+                                regweight=0.0,
                                 stop_crit='gradient',
                                 fbest_repeat_max=0,
                                 display_output=True,
