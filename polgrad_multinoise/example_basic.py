@@ -13,8 +13,8 @@ if __name__ == "__main__":
     Aa = Aa[:, :, np.newaxis]
     Bb = 0.1 * np.array([[8, 8], [3, 3], [-6, 6]])
     Bb = Bb[:, :, np.newaxis]
-    a = np.array([[0.1]])
-    b = np.array([[0.1]])
+    a = np.zeros((1, 1))
+    b = np.zeros((1, 1))
     SS = LQRSysMult(A, B, a, Aa, b, Bb, Q, R, S0)
 
     # Start with an initially stabilizing (feasible) controller;
