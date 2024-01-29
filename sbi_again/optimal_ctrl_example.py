@@ -9,9 +9,9 @@ if __name__ == "__main__":
     Q = np.eye(3)
     R = np.eye(2)
     S0 = np.eye(3)
-    Aa = 0.1 * np.array([[2, 9, -6], [9, 9, 4], [-9, -2, 5]])
+    Aa = np.zeros(A.shape)
     Aa = Aa[:, :, np.newaxis]
-    Bb = 0.1 * np.array([[8, 8], [3, 3], [-6, 6]])
+    Bb = np.zeros(B.shape)
     Bb = Bb[:, :, np.newaxis]
     a = np.zeros((1, 1))
     b = np.zeros((1, 1))
