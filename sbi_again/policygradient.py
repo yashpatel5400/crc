@@ -14,6 +14,7 @@ class PolicyGradientOptions:
                  epsilon, # Convergence threshold
                  eta, # Step size
                  max_iters=1e6, # Max number of steps to take
+                 max_C_iters=1e6, # Max number of steps to take for gradient ascent on *C*
                  disp_stride=1, # INWORK # How many iterations between plot updates
                  wait_time=1.0/20, #INWORK #From MATLAB - Ensure this is above 1/refresh_rate for your monitor
                  keep_hist=False,  # Record history during optimization?
@@ -36,6 +37,7 @@ class PolicyGradientOptions:
         self.epsilon = epsilon
         self.eta = 0.5 if step_direction=='policy_iteration' else eta
         self.max_iters = max_iters
+        self.max_C_iters = max_C_iters
         self.disp_stride = disp_stride
         self.wait_time = wait_time
         self.keep_hist = keep_hist
@@ -774,3 +776,121 @@ def run_policy_gradient(SS, PGO):
 
     print('Policy gradient descent optimization completed after %d iterations, %.3f seconds' % (iterc+1,t_end-t_start))
     return SS, hist_list
+
+
+def proj(C, C_hat, q_hat):
+    # returns the projection of C to the ball B_q(C_hat), with the ball defined in matrix 2-norm
+    C_diff = C_hat - C
+    C_diff_dir = C_diff / np.linalg.norm(C_diff, ord=2)
+    C_proj = C + C_diff_dir * q_hat
+    return C_proj
+
+
+def run_dynamics_gradient(SS, PGO, C_hat, q_hat):
+    # run_policy_gradient  Run dynamics gradient ascent on a system
+    # (find worst case dynamics within some contraint set for C = [A B])
+    
+    # Initialize
+    stop = False
+    converged = False
+    stop_early = False
+    iterc = 0
+    sleep(0.5)
+
+    headerstr = 'Iteration | Stop quant / threshold |  Curr obj |  Best obj | Norm of gain delta | Stepsize  '
+    if PGO.regularizer is not None:
+        headerstr = headerstr+'| Sparsity'
+    print(headerstr)
+
+    C = np.hstack([np.copy(SS.A), np.copy(SS.B)])
+    Cold = np.copy(C) 
+    objfun_best = np.inf
+
+    P = SS.P
+    S = SS.S
+
+    fbest_repeats = 0
+
+    # Iterate
+    while not stop:
+        # Calculate gradient (G)
+        # Do this to get combined calculation of P and S,
+        # pass previous P and S to warm-start dlyap iterative algorithm
+        SS.calc_PS(P,S)
+        Glqr = SS.C_grad
+        P = SS.P
+        S = SS.S
+
+        # Calculate step direction (V)
+        G = Glqr
+        V = G
+
+        # Check if mean-square stable
+        if SS.c == np.inf:
+            raise Exception('ITERATE WENT UNSTABLE DURING GRADIENT DESCENT')
+
+        objfun = SS.c
+
+        if iterc == 0:
+            Cchange = np.inf
+        else:
+            Cchange = la.norm(C-Cold,'fro')/la.norm(C,'fro')
+        Cold = C
+
+        # Check for stopping condition
+        if PGO.stop_crit=='gradient':
+            normgrad = la.norm(G)
+            stop_quant = normgrad
+            stop_thresh = PGO.epsilon
+            if normgrad < PGO.epsilon:
+                converged = True
+
+        if iterc >= PGO.max_C_iters-1:
+            stop_early = True
+        else:
+            iterc += 1
+
+        stop = converged or stop_early
+
+        # Record current best (subgradient method)
+        if objfun < objfun_best:
+            objfun_best = objfun
+            fbest_repeats = 0
+        else:
+            fbest_repeats += 1
+
+        eta = PGO.eta
+        C  += eta*V # note: we are *adding* the gradient since we wish to do gradeint *ascent* here (for worst case C)
+        SS.set_A(C[:,:SS.A.shape[1]])
+        SS.set_B(C[:,SS.A.shape[1]:])
+        
+        # Prox step on regularizer
+        C = proj(C, C_hat, q_hat)
+        SS.set_A(C[:,:SS.A.shape[1]])
+        SS.set_B(C[:,SS.A.shape[1]:])
+        
+        # Printing
+        if PGO.display_output:
+            # Print iterate messages
+            printstr0 = "{0:9d}".format(iterc+1)
+            printstr1 = " {0:5.3e} / {1:5.3e}".format(stop_quant, stop_thresh)
+            printstr2a = "{0:5.3e}".format(objfun)
+            printstr2b = "{0:5.3e}".format(objfun_best)
+            printstr3 = "         {0:5.3e}".format(Cchange)
+            printstr4 = "{0:5.3e}".format(eta)
+            printstr = printstr0+' | '+printstr1+' | '+printstr2a+' | '+printstr2b+' | '+printstr3+' | '+printstr4
+            if PGO.display_inplace:
+                if iterc==0:
+                    print(" " * len(printstr),end='')
+                inplace_print(printstr)
+            else:
+                print(printstr)
+            if stop: # Print stopping messages
+                print('')
+                if converged:
+                    print('Optimization converged, stopping now')
+                if stop_early:
+                    print('Max iterations exceeded, stopping optimization')
+
+    print('Policy gradient descent optimization completed after %d iterations' % (iterc+1))
+    return SS

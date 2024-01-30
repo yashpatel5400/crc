@@ -198,6 +198,12 @@ class LQRSys(LTISys):
         return self._grad
 
     @property
+    def C_grad(self):
+        if not hasattr(self, '_C_grad'):
+            self.calc_C_grad()
+        return self._C_grad
+
+    @property
     def RK(self):
         if not hasattr(self, '_RK'):
             self.calc_grad()
@@ -248,6 +254,12 @@ class LQRSys(LTISys):
             self.calc_PS()  # This is to save on dlyap iterations
         self._grad, self._RK, self._EK = lqr_gradient(self)
         return self._grad, self._RK, self._EK
+
+    def calc_C_grad(self):
+        if (not hasattr(self, '_P')) and (not hasattr(self, '_S')):
+            self.calc_PS()  # This is to save on dlyap iterations
+        self._C_grad = lqr_C_gradient(self)
+        return self._C_grad
 
     def del_lqr_cl(self):
         if hasattr(self, '_QK'):
@@ -729,6 +741,20 @@ def lqr_gradient(obj):
     # Compute gradient
     grad = 2 * np.dot(EK, obj.S)
     return grad, RK, EK
+
+
+def lqr_C_gradient(obj):
+    """Calculate the cost (policy) gradient of an LQR system"""
+    # obj is a LQRSys or LQRSysMult instance
+
+    if obj.P is None:
+        raise Exception('Attempted to compute gradient of system with undefined cost P matrix!')
+
+    # W = block_diag([I, K]) in R^(n+m,n)
+    C = np.hstack([obj.A, obj.B])
+    W = np.vstack([np.eye(obj.n), obj.K])
+    grad = 2 * obj.P @ C @ W @ obj.S @ W.T
+    return grad
 
 
 def check_mss_obj(obj):
