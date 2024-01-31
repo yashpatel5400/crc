@@ -3,6 +3,7 @@ from numpy import linalg as la
 from scipy.special import huber, pseudo_huber
 from matrixmath import solveb, vec, mdot, rngg
 from utility import inplace_print
+import cvxpy as cp
 
 from time import time,sleep
 import warnings
@@ -778,12 +779,21 @@ def run_policy_gradient(SS, PGO):
     return SS, hist_list
 
 
-def proj(C, C_hat, q_hat):
-    # returns the projection of C to the ball B_q(C_hat), with the ball defined in matrix 2-norm
-    C_diff = C_hat - C
-    C_diff_dir = C_diff / np.linalg.norm(C_diff, ord=2)
-    C_proj = C + C_diff_dir * q_hat
-    return C_proj
+def proj(C, C_hat, q_hat, K):
+    # ensure C in the space of stabilized dynamics (for current K) and in B_q(C_hat),
+    # with the ball defined in matrix 2-norm
+    _, n = K.shape
+    W = np.vstack([np.eye(n), K])
+    C_proj = cp.Variable(C.shape)
+    constraints = [
+        cp.atoms.norm(C_hat - C_proj) <= q_hat,
+        -np.eye(n) << C_proj @ W,
+        C_proj @ W << np.eye(n),
+    ]
+    prob = cp.Problem(cp.Minimize(cp.atoms.norm(C - C_proj)),
+                    constraints)
+    prob.solve()
+    return C_proj.value
 
 
 def run_dynamics_gradient(SS, PGO, C_hat, q_hat):
@@ -865,7 +875,7 @@ def run_dynamics_gradient(SS, PGO, C_hat, q_hat):
         SS.set_B(C[:,SS.A.shape[1]:])
         
         # Prox step on regularizer
-        C = proj(C, C_hat, q_hat)
+        C = proj(C, C_hat, q_hat, SS.K)
         SS.set_A(C[:,:SS.A.shape[1]])
         SS.set_B(C[:,SS.A.shape[1]:])
         
