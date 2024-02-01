@@ -1,3 +1,4 @@
+import argparse
 import os
 import pickle
 import matplotlib.pyplot as plt
@@ -8,38 +9,42 @@ from train_dynamics import generate_data
 from policygradient import PolicyGradientOptions, run_policy_gradient, run_dynamics_gradient, Regularizer
 from ltimult import LQRSysMult
 
-def calc_scores(encoder, xs, Cs, k=10):
-    cal_samples = encoder.sample(k, xs).detach().cpu().numpy()
-    cal_samples = cal_samples.reshape((cal_samples.shape[0], k, 2, 3))
-    cal_tiled = np.transpose(np.tile(Cs.detach().cpu().numpy(), (k, 1, 1, 1)), (1, 0, 2, 3))
+def calc_scores(encoder, xs, Cs, K):
+    cal_samples = encoder.sample(K, xs).detach().cpu().numpy()
+    cal_samples = cal_samples.reshape((cal_samples.shape[0], K, 2, 3))
+    cal_tiled = np.transpose(np.tile(Cs.detach().cpu().numpy(), (K, 1, 1, 1)), (1, 0, 2, 3))
     cal_diff = cal_samples - cal_tiled
     cal_norms = np.linalg.norm(cal_diff, ord=2, axis=(2,3))
     return np.min(cal_norms, axis=-1)
 
-def get_real_robust_dynamics(alpha=0.05):
+def generate_full_dataset():
+    # C in R^2x3
+    cal_sims = 1_000
+    cal_C, cal_x = generate_data(cal_sims)
+    cal_C = cal_C.reshape((cal_sims, 2, 3))
+    
+    test_sims = 1
+    test_C, test_x = generate_data(test_sims)
+    test_C = test_C.detach().cpu().numpy().reshape((2, 3))
+    return (cal_x, cal_C), (test_x, test_C)
+
+def construct_prediction_region(cal_x, cal_C, test_x, K, alpha=0.05):
     device = "cpu"
     cached_fn = os.path.join("dynamics_trained", "dynamics.nf")
     with open(cached_fn, "rb") as f:
         encoder = pickle.load(f)
     encoder.to(device)
 
-    # C in R^2x3
-    cal_sims = 1_000
-    cal_C_hats, cal_x = generate_data(cal_sims)
-    cal_C_hats = cal_C_hats.reshape((cal_sims, 2, 3))
-    cal_scores = calc_scores(encoder, cal_x, cal_C_hats)
+    cal_scores = calc_scores(encoder, cal_x, cal_C, K)
     q_hat = np.quantile(cal_scores, q = 1-alpha)
 
-    k = 10
-    test_sims = 1
-    test_C, test_x = generate_data(test_sims)
-    test_C_hats = encoder.sample(k, test_x).detach().cpu().numpy()
-    
-    test_C = test_C.detach().cpu().numpy().reshape((2, 3))
-    test_C_hats = test_C_hats.reshape((k, 2, 3))
-    return test_C, (test_C_hats, q_hat)
+    test_C_hats = encoder.sample(K, test_x).detach().cpu().numpy()    
+    test_C_hats = test_C_hats.reshape((K, 2, 3))
+    return test_C_hats, q_hat
 
-def init_system(A, B, K_0):
+def init_system(C, K_0):
+    A, B = C[:,:2], C[:,2:]
+    
     # System problem data
     Q = np.eye(A.shape[-1])
     R = np.eye(B.shape[-1])
@@ -77,15 +82,12 @@ def get_optimizer(K_size, K_steps):
                                     display_inplace=True,
                                     slow=False)
 
-def main():
-    # Get system dynamics from side information
-    C, (C_hats, q_hat) = get_real_robust_dynamics(alpha=0.05)
-    A, B    = C[:,:2], C[:,2:]
-    K_shape = ([B.shape[1], A.shape[1]])
-    
+def main(C, C_hats, q_hat):   
     # Get nominal system solution (should be bounded above by robust optimal value unless there's a bug)
     # To find K^*, we can use PG but can get exact soln w/ Riccati Equations
-    nominal_system = init_system(A, B, np.zeros(K_shape)) # (i.e. using true (A, B))
+    A, B = C[:,:2], C[:,2:]
+    K_shape = ([B.shape[1], A.shape[1]])
+    nominal_system = init_system(C, np.zeros(K_shape))
     nominal_system.setK(nominal_system.Kare)
     nominal_cost = nominal_system.c
 
@@ -99,8 +101,7 @@ def main():
         # Need to find argmax_(C_k) l(C_k) for current K^*
         C_k_stars, l_k_stars = [], []
         for k in range(len(C_hats)):
-            A_k_hat, B_k_hat = C_hats[k][:,:2], C_hats[k][:,2:]
-            robust_system_k = init_system(A_k_hat, B_k_hat, K_star)       # (i.e. using predictions from generative model (A, B))
+            robust_system_k = init_system(C_hats[k], K_star) # (i.e. using predictions from generative model (A, B))
             C_k_star, l_k_star = run_dynamics_gradient(robust_system_k, robust_pgo, q_hat) # find the C^* = [A^*, B^*] for Danskin's Theorem (with fixed controller K^(t))
             C_k_stars.append(C_k_star)
             l_k_stars.append(l_k_star)
@@ -116,4 +117,25 @@ def main():
         print(f"Nomninal Cost : {nominal_cost} | Robust Cost : {robust_cost}")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--approach", choices=["box", "ptc_b", "ellipsoid", "ptc_e", "crc"])
+    parser.add_argument("--generate_data", action='store_true')
+    args = parser.parse_args()
+
+    cached_data_fn = "data.pkl"
+    if args.generate_data:
+        # by default, we just terminate the program post-generation to avoid bugs in running
+        (cal_x, cal_C), (test_x, test_C) = generate_full_dataset()
+        with open(cached_data_fn, "wb") as f:
+            pickle.dump(((cal_x, cal_C), (test_x, test_C)), f)
+    else:
+        with open(cached_data_fn, "rb") as f:
+            (cal_x, cal_C), (test_x, test_C) = pickle.load(f)
+        
+        if args.approach != "crc":
+            K = 1
+        else:
+            K = 10
+
+        test_C_hats, q_hat = construct_prediction_region(cal_x, cal_C, test_x, K)
+        main(test_C, test_C_hats, q_hat)
