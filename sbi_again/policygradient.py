@@ -785,8 +785,8 @@ def proj(C, C_hat, q_hat, K):
     W = np.vstack([np.eye(n), K])
     C_proj = cp.Variable(C.shape)
     constraints = [
-        cp.atoms.norm(C_hat - C_proj) <= q_hat,            # keep proj in B_q(C_hat) with the ball defined in matrix 2-norm
-        -np.eye(n) << C_proj @ W, C_proj @ W << np.eye(n), # ensures dynamics remain stabilizing
+        cp.atoms.norm(C_hat - C_proj) <= q_hat, # keep proj in B_q(C_hat) with the ball defined in matrix 2-norm
+        cp.atoms.norm(C_proj @ W) <= 1          # ensures dynamics remain stabilizing
     ]
     prob = cp.Problem(cp.Minimize(cp.atoms.norm(C - C_proj)),
                     constraints)
