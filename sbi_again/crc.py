@@ -1,4 +1,5 @@
 import argparse
+import cvxpy as cp
 import os
 import pickle
 import matplotlib.pyplot as plt
@@ -9,13 +10,40 @@ from train_dynamics import generate_data
 from policygradient import PolicyGradientOptions, run_policy_gradient, run_dynamics_gradient, Regularizer
 from ltimult import LQRSysMult
 
-def calc_scores(encoder, xs, Cs, K):
-    cal_samples = encoder.sample(K, xs).detach().cpu().numpy()
-    cal_samples = cal_samples.reshape((cal_samples.shape[0], K, 2, 3))
-    cal_tiled = np.transpose(np.tile(Cs.detach().cpu().numpy(), (K, 1, 1, 1)), (1, 0, 2, 3))
-    cal_diff = cal_samples - cal_tiled
-    cal_norms = np.linalg.norm(cal_diff, ord=2, axis=(2,3))
-    return np.min(cal_norms, axis=-1)
+approach_config = {
+    "box": {
+        "K": 1,
+        "norm": 1,
+        "prediction_type": "mean",
+    }, 
+    "ptc_b": {
+        "K": 1,
+        "norm": 1,
+        "prediction_type": "gen",
+    }, 
+    "ellipsoid":  {
+        "K": 1,
+        "norm": 2,
+        "prediction_type":  "mean",
+    }, 
+    "ptc_e":  {
+        "K": 1,
+        "norm": 2,
+        "prediction_type": "gen",
+    }, 
+    "crc":  {
+        "K": 10,
+        "norm": 2,
+        "prediction_type": "gen",
+    }
+}
+
+def mtx_mean(Cs, norm):
+    C_mean = cp.Variable(Cs[0].shape)
+    obj = sum([cp.atoms.norm(C - C_mean, norm) for C in Cs])
+    prob = cp.Problem(cp.Minimize(obj))
+    prob.solve()
+    return C_mean.value
 
 def generate_full_dataset():
     # C in R^2x3
@@ -28,18 +56,31 @@ def generate_full_dataset():
     test_C = test_C.detach().cpu().numpy().reshape((2, 3))
     return (cal_x, cal_C), (test_x, test_C)
 
-def construct_prediction_region(cal_x, cal_C, test_x, K, alpha=0.05):
+def calc_scores(Cs, C_hats, norm):
+    K = C_hats.shape[1]
+    cal_tiled = np.transpose(np.tile(Cs.detach().cpu().numpy(), (K, 1, 1, 1)), (1, 0, 2, 3))
+    cal_diff = C_hats - cal_tiled
+    cal_norms = np.linalg.norm(cal_diff, ord=norm, axis=(2,3))
+    return np.min(cal_norms, axis=-1)
+
+def construct_prediction_region(cal_x, cal_C, test_x, K, norm, prediction_type, alpha=0.05):
     device = "cpu"
     cached_fn = os.path.join("dynamics_trained", "dynamics.nf")
     with open(cached_fn, "rb") as f:
         encoder = pickle.load(f)
     encoder.to(device)
 
-    cal_scores = calc_scores(encoder, cal_x, cal_C, K)
+    if prediction_type == "mean":
+        mean_cal = mtx_mean(cal_C, norm)
+        predict  = lambda x : np.tile(mean_cal, (x.shape[0],1,1,1))
+    else:
+        predict = lambda x : encoder.sample(K, x).detach().cpu().numpy().reshape((x.shape[0], K, 2, 3))
+
+    cal_C_hats = predict(cal_x)
+    cal_scores = calc_scores(cal_C, cal_C_hats, norm)
     q_hat = np.quantile(cal_scores, q = 1-alpha)
 
-    test_C_hats = encoder.sample(K, test_x).detach().cpu().numpy()    
-    test_C_hats = test_C_hats.reshape((K, 2, 3))
+    test_C_hats = predict(test_x)[0]
     return test_C_hats, q_hat
 
 def init_system(C, K_0):
@@ -94,7 +135,7 @@ def main(C, C_hats, q_hat):
     # Solve robust system using policy gradient (based on Danskin's Theorem)
     K_star      = np.zeros(K_shape)
     robust_pgo  = get_optimizer(np.prod(K_shape), 500) # optimization for K is done in single steps to give correct gradients
-    opt_steps   = 2_000
+    opt_steps   = 1
     for opt_step in range(opt_steps):
         print(f"Step: {opt_step}")
         
@@ -102,19 +143,19 @@ def main(C, C_hats, q_hat):
         C_k_stars, l_k_stars = [], []
         for k in range(len(C_hats)):
             robust_system_k = init_system(C_hats[k], K_star) # (i.e. using predictions from generative model (A, B))
-            C_k_star, l_k_star = run_dynamics_gradient(robust_system_k, robust_pgo, q_hat) # find the C^* = [A^*, B^*] for Danskin's Theorem (with fixed controller K^(t))
+            C_k_star, l_k_star = run_dynamics_gradient(robust_system_k, robust_pgo, norm, q_hat) # find the C^* = [A^*, B^*] for Danskin's Theorem (with fixed controller K^(t))
             C_k_stars.append(C_k_star)
             l_k_stars.append(l_k_star)
         C_star = C_k_stars[np.argmax(l_k_stars)]
 
         print("---------------------------------------")
-        A_star, B_star = C_star[:,:2], C_star[:,2:]
-        robust_system_star = init_system(A_star, B_star, K_star) # fix C^* from above and take a step to update K
+        robust_system_star = init_system(C_star, K_star) # fix C^* from above and take a step to update K
         K_star, robust_cost = run_policy_gradient(robust_system_star, robust_pgo)
     
         # Print the regularized optimal gains (from proximal gradient optimization)
         # and the unregularized optimal gains (from solving a Riccati equation)
-        print(f"Nomninal Cost : {nominal_cost} | Robust Cost : {robust_cost}")
+        print(f"Nominal Cost : {nominal_cost} | Robust Cost : {robust_cost}")
+    return C_star, K_star, robust_cost
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -132,10 +173,9 @@ if __name__ == "__main__":
         with open(cached_data_fn, "rb") as f:
             (cal_x, cal_C), (test_x, test_C) = pickle.load(f)
         
-        if args.approach != "crc":
-            K = 1
-        else:
-            K = 10
-
-        test_C_hats, q_hat = construct_prediction_region(cal_x, cal_C, test_x, K)
-        main(test_C, test_C_hats, q_hat)
+        cfg = approach_config[args.approach]
+        K, norm, prediction_type = cfg["K"], cfg["norm"], cfg["prediction_type"]
+        test_C_hats, q_hat = construct_prediction_region(cal_x, cal_C, test_x, K, norm, prediction_type)
+        C_star, K_star, robust_cost = main(test_C, test_C_hats, q_hat)
+        with open(os.path.join("results", f"{args.approach}.pkl"), "wb") as f:
+            pickle.dump((C_star, K_star, robust_cost), f)
