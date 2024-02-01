@@ -86,8 +86,6 @@ def main():
     # Get nominal system solution (should be bounded above by robust optimal value unless there's a bug)
     # To find K^*, we can use PG but can get exact soln w/ Riccati Equations
     nominal_system = init_system(A, B, np.zeros(K_shape)) # (i.e. using true (A, B))
-    nominal_system.setK(np.random.random(K_shape))
-    nominal_cost_rand = nominal_system.c
     nominal_system.setK(nominal_system.Kare)
     nominal_cost = nominal_system.c
 
