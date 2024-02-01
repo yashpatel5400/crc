@@ -776,19 +776,17 @@ def run_policy_gradient(SS, PGO):
     hist_list = [K_hist, grad_hist, c_hist, objfun_hist]
 
     print('Policy gradient descent optimization completed after %d iterations, %.3f seconds' % (iterc+1,t_end-t_start))
-    return SS, hist_list
+    return K, SS.c
+    # return SS, hist_list
 
 
 def proj(C, C_hat, q_hat, K):
-    # ensure C in the space of stabilized dynamics (for current K) and in B_q(C_hat),
-    # with the ball defined in matrix 2-norm
     _, n = K.shape
     W = np.vstack([np.eye(n), K])
     C_proj = cp.Variable(C.shape)
     constraints = [
-        cp.atoms.norm(C_hat - C_proj) <= q_hat,
-        -np.eye(n) << C_proj @ W,
-        C_proj @ W << np.eye(n),
+        cp.atoms.norm(C_hat - C_proj) <= q_hat,            # keep proj in B_q(C_hat) with the ball defined in matrix 2-norm
+        -np.eye(n) << C_proj @ W, C_proj @ W << np.eye(n), # ensures dynamics remain stabilizing
     ]
     prob = cp.Problem(cp.Minimize(cp.atoms.norm(C - C_proj)),
                     constraints)
@@ -796,7 +794,7 @@ def proj(C, C_hat, q_hat, K):
     return C_proj.value
 
 
-def run_dynamics_gradient(SS, PGO, C_hat, q_hat):
+def run_dynamics_gradient(SS, PGO, q_hat):
     # run_policy_gradient  Run dynamics gradient ascent on a system
     # (find worst case dynamics within some contraint set for C = [A B])
     
@@ -813,6 +811,7 @@ def run_dynamics_gradient(SS, PGO, C_hat, q_hat):
     print(headerstr)
 
     C = np.hstack([np.copy(SS.A), np.copy(SS.B)])
+    C_hat = np.copy(C) 
     Cold = np.copy(C) 
     objfun_best = np.inf
 
@@ -903,4 +902,4 @@ def run_dynamics_gradient(SS, PGO, C_hat, q_hat):
                     print('Max iterations exceeded, stopping optimization')
 
     print('Policy gradient descent optimization completed after %d iterations' % (iterc+1))
-    return SS
+    return C, SS.c
