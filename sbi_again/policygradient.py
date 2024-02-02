@@ -14,6 +14,7 @@ class PolicyGradientOptions:
     def __init__(self,
                  epsilon, # Convergence threshold
                  eta, # Step size
+                 C_eta, # Step size for C dynamics optimization
                  max_iters=1e6, # Max number of steps to take
                  max_C_iters=1e6, # Max number of steps to take for gradient ascent on *C*
                  disp_stride=1, # INWORK # How many iterations between plot updates
@@ -37,6 +38,7 @@ class PolicyGradientOptions:
                  ):
         self.epsilon = epsilon
         self.eta = 0.5 if step_direction=='policy_iteration' else eta
+        self.C_eta = C_eta
         self.max_iters = max_iters
         self.max_C_iters = max_C_iters
         self.disp_stride = disp_stride
@@ -868,7 +870,7 @@ def run_dynamics_gradient(SS, PGO, norm, q_hat):
         else:
             fbest_repeats += 1
 
-        eta = PGO.eta
+        eta = PGO.C_eta
         C  += eta*V # note: we are *adding* the gradient since we wish to do gradeint *ascent* here (for worst case C)
         SS.set_A(C[:,:SS.A.shape[1]])
         SS.set_B(C[:,SS.A.shape[1]:])

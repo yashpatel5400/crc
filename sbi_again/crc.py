@@ -106,8 +106,9 @@ def init_system(C, K_0):
 def get_optimizer(K_size, K_steps):
     return PolicyGradientOptions(epsilon=(1e-2) * K_size,
                                     eta=1e-3,
+                                    C_eta=5e-3,
                                     max_iters=K_steps,
-                                    max_C_iters=500,
+                                    max_C_iters=5_000,
                                     disp_stride=1,
                                     keep_hist=True,
                                     opt_method='proximal',
@@ -133,9 +134,10 @@ def main(C, C_hats, q_hat):
     nominal_cost = nominal_system.c
 
     # Solve robust system using policy gradient (based on Danskin's Theorem)
-    K_star      = np.zeros(K_shape)
-    robust_pgo  = get_optimizer(np.prod(K_shape), 500) # optimization for K is done in single steps to give correct gradients
-    opt_steps   = 1
+    robust_system_init = init_system(C_hats[0], np.zeros(K_shape))
+    K_star     = robust_system_init.Kare # np.zeros(K_shape) # get 
+    robust_pgo = get_optimizer(np.prod(K_shape), 1) # optimization for K is done in single steps to give correct gradients
+    opt_steps  = 200
     for opt_step in range(opt_steps):
         print(f"Step: {opt_step}")
         
