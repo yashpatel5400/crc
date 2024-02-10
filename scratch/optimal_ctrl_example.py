@@ -1,3 +1,6 @@
+import sys
+sys.path.append("../")
+
 import numpy as np
 from policygradient import PolicyGradientOptions, run_policy_gradient, Regularizer
 from ltimult import LQRSysMult
