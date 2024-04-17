@@ -6,12 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from train_dynamics import generate_data
 from policygradient import PolicyGradientOptions, run_policy_gradient, run_dynamics_gradient, Regularizer
 from ltimult import LQRSysMult
 
 def init_system(C, K_0):
-    A, B = C[:,:2], C[:,2:]
+    A, B = C[:,:4], C[:,4:]
     
     # System problem data
     Q = np.eye(A.shape[-1])
@@ -54,7 +53,7 @@ def get_optimizer(K_size, K_steps):
 def main(C, C_hat, q_hat):   
     # Get nominal system solution (should be bounded above by robust optimal value unless there's a bug)
     # To find K^*, we can use PG but can get exact soln w/ Riccati Equations
-    A, B = C[:,:2], C[:,2:]
+    A, B = C[:,:4], C[:,4:]
     K_shape = ([B.shape[1], A.shape[1]])
     nominal_system = init_system(C, np.zeros(K_shape))
     nominal_system.setK(nominal_system.Kare)
@@ -83,4 +82,4 @@ def main(C, C_hat, q_hat):
 if __name__ == "__main__":
     with open("experiments/airfoil.pkl", "rb") as f:
         cfg = pickle.load(f)
-    C_star, K_star, robust_cost = main(cfg["test_C"], cfg["test_C_hat"], cfg["q_hat"])
+    C_star, K_star, robust_cost = main(cfg["test_C"][0], cfg["test_C_hat"][0], cfg["q_hat"])

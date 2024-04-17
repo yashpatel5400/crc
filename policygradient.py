@@ -784,11 +784,9 @@ def run_policy_gradient(SS, PGO):
 
 def proj(C, C_hat, norm, q_hat, K):
     _, n = K.shape
-    W = np.vstack([np.eye(n), K])
     C_proj = cp.Variable(C.shape)
     constraints = [
         cp.atoms.norm(C_hat - C_proj, norm) <= q_hat, # keep proj in B_q(C_hat) with the ball defined in matrix 2-norm
-        # cp.atoms.norm(C_proj @ W) <= 1 # ensures dynamics remain stabilizing
     ]
     prob = cp.Problem(cp.Minimize(cp.atoms.norm(C - C_proj)),
                     constraints)
