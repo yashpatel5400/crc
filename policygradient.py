@@ -783,13 +783,9 @@ def run_policy_gradient(SS, PGO):
 
 
 def proj(C, C_hat, norm, q_hat, K):
-    _, n = K.shape
     C_proj = cp.Variable(C.shape)
-    constraints = [
-        cp.atoms.norm(C_hat - C_proj, norm) <= q_hat, # keep proj in B_q(C_hat) with the ball defined in matrix 2-norm
-    ]
-    prob = cp.Problem(cp.Minimize(cp.atoms.norm(C - C_proj)),
-                    constraints)
+    constraints = [cp.atoms.norm(C_hat - C_proj, norm) <= q_hat] # keep proj in B_q(C_hat) with the ball defined in matrix 2-norm
+    prob = cp.Problem(cp.Minimize(cp.atoms.norm(C - C_proj)), constraints)
     prob.solve()
     return C_proj.value
 
@@ -844,7 +840,9 @@ def run_dynamics_gradient(SS, PGO, norm, q_hat):
             Cchange = np.inf
         else:
             Cchange = la.norm(C-Cold,'fro')/la.norm(C,'fro')
-        Cold = C
+        if Cchange < PGO.epsilon:
+            converged = True
+        Cold = C.copy()
 
         # Check for stopping condition
         if PGO.stop_crit=='gradient':
