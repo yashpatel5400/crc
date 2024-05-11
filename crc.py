@@ -16,8 +16,8 @@ def get_noise(mult_noise_method, noise, nom_system_params):
     n, m = B.shape
 
     # Multiplicative noise data
-    p = 2  # Number of multiplicative noises on A
-    q = 2  # Number of multiplicative noises on B
+    p = 5  # Number of multiplicative noises on A
+    q = 5  # Number of multiplicative noises on B
 
     if mult_noise_method == 'random':
         Aa = np.random.standard_normal([n, n, p])
@@ -165,9 +165,9 @@ def eval_controller(C, K):
     nominal_system = init_system("random", "none", C, K)
     return nominal_system.c
 
-def crc(C, C_hat, q_hat):
-    A, B = C[:,:4], C[:,4:]
-    K_shape = ([B.shape[1], A.shape[1]])
+def crc(C_hat, q_hat):
+    A_hat, B_hat = C_hat[:,:4], C_hat[:,4:]
+    K_shape = ([B_hat.shape[1], A_hat.shape[1]])
 
     try:
         # Solve robust system using policy gradient (based on Danskin's Theorem)
@@ -199,16 +199,21 @@ def get_ctrls(args):
     ctrls["nominal"] = init_system("random", "none", C_hat, np.zeros(K_shape)).Kare
     for mult_noise_method in ["random", "rowcol"]:
         for noise in ["critical", "olmss_weak", "olmsus"]:
-            SS = init_system(mult_noise_method, noise, C, ctrls["nominal"])
+            SS = init_system(mult_noise_method, noise, C_hat, ctrls["nominal"])
             try:
                 ctrls[f"{mult_noise_method}-{noise}"] = run_policy_gradient(SS, PGO)
             except:
                 ctrls[f"{mult_noise_method}-{noise}"] = None
-    ctrls["crc"] = crc(C, C_hat, q_hat)
+    ctrls["crc"] = crc(C_hat, q_hat)
     return ctrls
 
 if __name__ == "__main__":
-    with open("experiments/airfoil.pkl", "rb") as f:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--setup")
+    args = parser.parse_args()
+    setup = args.setup
+
+    with open(f"experiments/{setup}.pkl", "rb") as f:
         cfg = pickle.load(f)
 
     workers = 20
@@ -217,5 +222,5 @@ if __name__ == "__main__":
        get_ctrls,
        [(cfg["test_C"][C_idx], cfg["test_C_hat"][C_idx], cfg["q_hat"]) for C_idx in range(len(cfg["test_C"]))]
     ))
-    with open("controllers.pkl", "wb") as f:
+    with open(f"experiments/{setup}_controllers.pkl", "wb") as f:
         pickle.dump(controllers, f)
