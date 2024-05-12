@@ -8,8 +8,8 @@ import pandas as pd
 import multiprocessing
 import torch
 
-from policygradient import PolicyGradientOptions, run_policy_gradient, run_dynamics_gradient, Regularizer
-from ltimult import LQRSysMult, dare_mult, dlyap_mult
+from polgrad.policygradient import PolicyGradientOptions, run_policy_gradient, run_dynamics_gradient, Regularizer
+from polgrad.ltimult import LQRSysMult, dare_mult, dlyap_mult
 
 def get_noise(mult_noise_method, noise, nom_system_params):
     A, B, Q, R, S0 = nom_system_params

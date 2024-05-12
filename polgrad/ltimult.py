@@ -1,11 +1,12 @@
 import numpy as np
 from numpy import linalg as la
-from matrixmath import is_pos_def, vec, sympart, kron, randn, dlyap, dare, mdot
 
 import warnings
 from warnings import warn
 from copy import copy
 
+
+from polgrad.matrixmath import is_pos_def, vec, sympart, kron, randn, dlyap, dare, mdot
 
 ###############################################################################
 # Developer notes

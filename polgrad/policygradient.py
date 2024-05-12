@@ -1,14 +1,15 @@
 import numpy as np
 from numpy import linalg as la
 from scipy.special import huber, pseudo_huber
-from matrixmath import solveb, vec, mdot, rngg
-from utility import inplace_print
 import cvxpy as cp
 
 from time import time,sleep
 import warnings
 from warnings import warn
 from copy import copy
+
+from polgrad.matrixmath import solveb, vec, mdot, rngg
+from polgrad.utility import inplace_print
 
 class PolicyGradientOptions:
     def __init__(self,
