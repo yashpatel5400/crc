@@ -19,7 +19,7 @@ to enable final evaluation of the robust controller (i.e. evaluating the regret)
 python crc.py --setup airfoil
 ```
 This will produce a file in the `results/` directory with controllers defined using CRC and alternate margin methods. The main workhorses in this
-policy gradient method are the `policygradient.py` and `ltimult.py` scripts, which have the bulk of the implementations. Once the robust controllers
+policy gradient method are the `policygradient.py` and `ltimult.py` scripts in `polgrad/`, which have the bulk of the implementations. Once the robust controllers
 have been defined, they can be evaluated (to obtain the respective regrets) using
 ```
 python evaluate.py --setup airfoil
