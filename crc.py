@@ -213,7 +213,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     setup = args.setup
 
-    with open(f"experiments/{setup}.pkl", "rb") as f:
+    with open(os.path.join(f"experiments", f"{setup}.pkl"), "rb") as f:
         cfg = pickle.load(f)
 
     workers = 20
@@ -222,5 +222,7 @@ if __name__ == "__main__":
        get_ctrls,
        [(cfg["test_C"][C_idx], cfg["test_C_hat"][C_idx], cfg["q_hat"]) for C_idx in range(len(cfg["test_C"]))]
     ))
-    with open(f"experiments/{setup}_controllers.pkl", "wb") as f:
+
+    os.makedirs("results", exist_ok=True)
+    with open(os.path.join(f"results", f"{setup}.pkl"), "wb") as f:
         pickle.dump(controllers, f)
