@@ -2,6 +2,7 @@ import numpy as np
 import argparse
 import os
 import pickle
+from scipy import stats
 
 from crc import eval_controller
 
@@ -38,7 +39,7 @@ def print_results(cfg, controller_trials):
         percent_inf      = 1 - len(filtered_result) / len(results_per_alg[controller_alg])
 
         subopt_gaps      = (filtered_result - filtered_nominal) / filtered_nominal
-        optimal_values  += f" & {np.around(np.nanmean(subopt_gaps), 3)} ({np.around(np.std(subopt_gaps), 3)})"
+        optimal_values  += f" & {np.around(np.median(subopt_gaps), 3)} ({np.around(stats.median_abs_deviation(subopt_gaps), 4)})"
         percent_filter  += f" & {np.around(percent_inf, 3)}"
 
     print(" | ".join(controller_algs[2:]))
