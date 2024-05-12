@@ -150,18 +150,13 @@ if __name__ == "__main__":
         "load_pos": load_pos_generate_dynamics_matrices,
     }
 
-    thetas, (As, Bs), (A_hats, B_hats) = generate_data(setup_to_generate_func[setup], 2_000)
-    N_train, N_cal, N_test = (int(len(thetas) * 0.75), int(len(thetas) * 0.15), int(len(thetas) * 0.10))
+    thetas, _, (A_hats, B_hats) = generate_data(setup_to_generate_func[setup], 2_000)
+    N_train, N_cal = (int(len(thetas) * 0.80), int(len(thetas) * 0.20))
+    thetas_test, (As_test, Bs_test), _ = generate_data(setup_to_generate_func[setup], 1_000)
 
-    thetas_train, thetas_cal, thetas_test = thetas[:N_train], thetas[N_train:N_train+N_cal], thetas[N_train+N_cal:]
-    As_train, As_cal, As_test = As[:N_train], As[N_train:N_train+N_cal], As[N_train+N_cal:]
-    Bs_train, Bs_cal, Bs_test = Bs[:N_train], Bs[N_train:N_train+N_cal], Bs[N_train+N_cal:]
-    A_hats_train, A_hats_cal, A_hats_test = A_hats[:N_train], A_hats[N_train:N_train+N_cal], A_hats[N_train+N_cal:]
-    B_hats_train, B_hats_cal, B_hats_test = B_hats[:N_train], B_hats[N_train:N_train+N_cal], B_hats[N_train+N_cal:]
-
-    print(thetas_train.shape)
-    print(thetas_cal.shape)
-    print(thetas_test.shape)
+    thetas_train, thetas_cal = thetas[:N_train], thetas[N_train:N_train+N_cal]
+    A_hats_train, A_hats_cal = A_hats[:N_train], A_hats[N_train:N_train+N_cal]
+    B_hats_train, B_hats_cal = B_hats[:N_train], B_hats[N_train:N_train+N_cal]
 
     os.makedirs(os.path.join("data", setup), exist_ok=True)
     

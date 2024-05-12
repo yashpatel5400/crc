@@ -216,7 +216,7 @@ if __name__ == "__main__":
     with open(os.path.join(f"experiments", f"{setup}.pkl"), "rb") as f:
         cfg = pickle.load(f)
 
-    workers = 20
+    workers = 50
     pool = multiprocessing.Pool(workers)
     controllers = list(pool.map(
        get_ctrls,

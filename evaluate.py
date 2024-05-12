@@ -1,25 +1,20 @@
 import numpy as np
 import argparse
+import os
 import pickle
 
 from crc import eval_controller
 
-def print_results(setup):
-    with open(f"experiments/{setup}_controllers.pkl", "rb") as f:
-        ctrls = pickle.load(f)
-
-    with open(f"experiments/{setup}.pkl", "rb") as f:
-        cfg = pickle.load(f)
-
+def print_results(cfg, controller_trials):
     controller_evals = []
-    for ctrl_idx in list(range(len(ctrls))):
-        controllers = ctrls[ctrl_idx]
+    for trial_idx in list(range(len(controller_trials))):
+        controllers = controller_trials[trial_idx]
         evals = {}
         for controller in controllers:
             if controllers[controller] is None:
                 evals[controller] = np.inf
             else:
-                C = cfg["test_C"][ctrl_idx]
+                C = cfg["test_C"][trial_idx]
                 if isinstance(controllers[controller], tuple):
                     evals[controller] = eval_controller(C, controllers[controller][0])
                 else:
@@ -46,6 +41,7 @@ def print_results(setup):
         optimal_values  += f" & {np.around(np.nanmean(subopt_gaps), 3)} ({np.around(np.std(subopt_gaps), 3)})"
         percent_filter  += f" & {np.around(percent_inf, 3)}"
 
+    print(" | ".join(controller_algs[2:]))
     print(optimal_values)
     print(percent_filter)
 
@@ -54,4 +50,11 @@ if __name__ == "__main__":
     parser.add_argument("--setup")
     args = parser.parse_args()
     setup = args.setup
-    print_results(setup)
+
+    with open(os.path.join(f"experiments", f"{setup}.pkl"), "rb") as f:
+        cfg = pickle.load(f)
+
+    with open(os.path.join(f"results", f"{setup}.pkl"), "rb") as f:
+        controller_trials = pickle.load(f)
+
+    print_results(cfg, controller_trials)
