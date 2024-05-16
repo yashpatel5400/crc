@@ -73,7 +73,7 @@ def generate_scores(net, thetas, As, Bs):
     diff = Cs - C_hats
     return (Cs, C_hats), np.linalg.norm(diff, ord=2, axis=(1,2))
 
-def plot_calibration(cal_scores, test_scores):
+def plot_calibration(setup, cal_scores, test_scores):
     sns.set_theme()
 
     plt.rcParams['mathtext.fontset'] = 'stix'
@@ -89,7 +89,7 @@ def plot_calibration(cal_scores, test_scores):
     sns.lineplot(x=(1-alphas), y=coverages)
     plt.xlabel(r"$\mathrm{Expected\ Coverage} (1-\alpha)$")
     plt.ylabel(r"$\mathrm{Empirical\ Coverage}$")
-    plt.title(r"$\mathrm{Model\ Calibration}$")
+    plt.title(r"$\mathrm{" + setup + r"}$")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -128,5 +128,9 @@ if __name__ == "__main__":
             "q_hat": q_hat,
         }, f)
 
-    plot_calibration(cal_scores, test_scores)
+    plot_titles = {
+        "airfoil": r"Airfoil\ Calibration",
+        "load_pos": r"Load\ Postioning\ Calibration",
+    }    
+    plot_calibration(plot_titles[setup], cal_scores, test_scores)
     plt.savefig(os.path.join("experiments", f"{setup}.png"))
