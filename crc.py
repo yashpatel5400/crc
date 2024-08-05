@@ -119,7 +119,8 @@ def get_noise(mult_noise_method, noise, nom_system_params):
     return a, Aa, b, Bb
 
 def init_system(mult_noise_method, noise, C, K_0):
-    A, B = C[:,:4], C[:,4:]
+    m, n = K_0.shape
+    A, B = C[:,:n], C[:,n:]
     
     # System problem data
     Q = np.eye(A.shape[-1])
