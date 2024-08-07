@@ -5,11 +5,27 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.linalg import solve_discrete_are
 import multiprocessing
 import torch
 
 from polgrad.policygradient import PolicyGradientOptions, run_policy_gradient, run_dynamics_gradient, Regularizer
 from polgrad.ltimult import LQRSysMult, dare_mult, dlyap_mult
+from robust import algo1, algo2
+
+def get_noise_matrices(mult_noise_method, n, m, p):
+    if mult_noise_method == 'random':
+        noise = np.random.standard_normal([n, m, p])
+    elif mult_noise_method == 'rowcol':
+        # Pick a random row and column
+        noise = np.zeros([n, m, p])
+        noise[np.random.randint(n), :, 0] = np.ones(m)
+        noise[:, np.random.randint(m), 1] = np.ones(n)
+    elif mult_noise_method == 'random_plus_rowcol':
+        noise = 0.3 * np.random.standard_normal([n, m, p])
+        noise[np.random.randint(n), :, 0] = np.ones(m)
+        noise[:, np.random.randint(m), 1] = np.ones(n)
+    return noise
 
 def get_noise(mult_noise_method, noise, nom_system_params):
     A, B, Q, R, S0 = nom_system_params
@@ -18,28 +34,8 @@ def get_noise(mult_noise_method, noise, nom_system_params):
     # Multiplicative noise data
     p = 5  # Number of multiplicative noises on A
     q = 5  # Number of multiplicative noises on B
-
-    if mult_noise_method == 'random':
-        Aa = np.random.standard_normal([n, n, p])
-        Bb = np.random.standard_normal([n, m, q])
-    elif mult_noise_method == 'rowcol':
-        # Pick a random row and column
-        Aa = np.zeros([n, n, p])
-        Bb = np.zeros([n, m, q])
-
-        Aa[np.random.randint(n), :, 0] = np.ones(n)
-        Aa[:, np.random.randint(n), 1] = np.ones(n)
-
-        Bb[np.random.randint(n), :, 0] = np.ones(m)
-        Bb[:, np.random.randint(m), 1] = np.ones(n)
-    elif mult_noise_method == 'random_plus_rowcol':
-        Aa = 0.3 * np.random.standard_normal([n, n, p])
-        Bb = 0.3 * np.random.standard_normal([n, m, q])
-        # Pick a random row and column
-        Aa[np.random.randint(n), :, 0] = np.ones(n)
-        Aa[:, np.random.randint(n), 1] = np.ones(n)
-        Bb[np.random.randint(n), :, 0] = np.ones(m)
-        Bb[:, np.random.randint(m), 1] = np.ones(n)
+    Aa = get_noise_matrices(mult_noise_method, n, n, p)
+    Bb = get_noise_matrices(mult_noise_method, n, m, q)
 
     incval = 1.05
     decval = 1.00 * (1 / incval)
@@ -166,8 +162,21 @@ def eval_controller(C, K):
     nominal_system = init_system("random", "none", C, K)
     return nominal_system.c
 
+def hinf(C_hat, gamma=10.0):
+    n, _ = C_hat.shape
+    A_hat, B_hat = C_hat[:,:n], C_hat[:,n:]
+    n, m = B_hat.shape
+    Q = np.eye(A_hat.shape[-1])
+    
+    R_rob = np.linalg.inv(np.eye(m) - 1 / gamma**2 * np.linalg.inv(B_hat.T @ B_hat))
+    M = solve_discrete_are(A_hat, B_hat, Q, R_rob)
+    Lambda = np.eye(n) + (B_hat @ B_hat.T - 1 / gamma**2 * np.eye(n)) @ M
+    K_inf = -B_hat.T @ M @ np.linalg.inv(Lambda) @ A_hat
+    return K_inf
+
 def crc(C_hat, q_hat):
-    A_hat, B_hat = C_hat[:,:4], C_hat[:,4:]
+    n, _ = C_hat.shape
+    A_hat, B_hat = C_hat[:,:n], C_hat[:,n:]
     K_shape = ([B_hat.shape[1], A_hat.shape[1]])
 
     try:
@@ -190,21 +199,59 @@ def crc(C_hat, q_hat):
         return None # if prediction region is too large, GDA falls outside stabilizing region
     
 def get_ctrls(args):
-    C, C_hat, q_hat = args
-    A, B = C[:,:4], C[:,4:]
+    C, C_hat, q_hat, setup, C_idx = args
+    n, _ = C_hat.shape
+    A, B = C[:,:n], C[:,n:]
+    A_hat, B_hat = C_hat[:,:n], C_hat[:,n:]
     K_shape = ([B.shape[1], A.shape[1]])
     PGO = get_optimizer(np.prod(K_shape), K_steps=1_000)
 
     ctrls = {}
     ctrls["optimal"] = init_system("random", "none", C, np.zeros(K_shape)).Kare
     ctrls["nominal"] = init_system("random", "none", C_hat, np.zeros(K_shape)).Kare
+    
+    # baseline from: "Robust control design for linear systems via multiplicative noise"
+    p = 5
+    Ai = np.transpose(get_noise_matrices("random", n, n, p), (2, 0, 1))
+    Q = np.eye(A.shape[-1])
+    R = np.eye(B.shape[-1])
+    eta_bar = np.ones(p) * .1
+    
+    try:
+        K1, _ = algo1(A_hat, B_hat, Ai, Q, R, eta_bar)
+        ctrls["mult_alg1"] = K1
+    except:
+        ctrls["mult_alg1"] = None
+    
+    try:
+        K2, _ = algo2(A_hat, B_hat, Ai, Q, R, eta_bar)
+        ctrls["mult_alg2"] = K2
+    except:
+        ctrls["mult_alg2"] = None
+        
+    # baseline from: standard h-infinity control
+    for gamma in [0.5,1.0]:
+        ctrl_name = f"hinf_{gamma}"
+        try:
+            ctrls[ctrl_name] = hinf(C_hat, gamma=gamma)
+        except:
+            ctrls[ctrl_name] = None
+
+    # baselines from: "Learning optimal controllers for linear systems with multiplicative noise via policy gradient"
     for mult_noise_method in ["random", "rowcol"]:
         for noise in ["critical", "olmss_weak", "olmsus"]:
+            ctrl_name = f"{mult_noise_method}-{noise}"
+            if ctrls["nominal"] is None:
+                ctrls[ctrl_name] = None
+                continue
+            
             SS = init_system(mult_noise_method, noise, C_hat, ctrls["nominal"])
             try:
-                ctrls[f"{mult_noise_method}-{noise}"] = run_policy_gradient(SS, PGO)
+                ctrls[ctrl_name] = run_policy_gradient(SS, PGO)
             except:
-                ctrls[f"{mult_noise_method}-{noise}"] = None
+                ctrls[ctrl_name] = None
+
+    # proposed conformal control method
     ctrls["crc"] = crc(C_hat, q_hat)
     return ctrls
 
@@ -217,11 +264,12 @@ if __name__ == "__main__":
     with open(os.path.join(f"experiments", f"{setup}.pkl"), "rb") as f:
         cfg = pickle.load(f)
 
+    os.makedirs(os.path.join(f"results", setup), exist_ok=True)
     workers = 50
     pool = multiprocessing.Pool(workers)
     controllers = list(pool.map(
        get_ctrls,
-       [(cfg["test_C"][C_idx], cfg["test_C_hat"][C_idx], cfg["q_hat"]) for C_idx in range(len(cfg["test_C"]))]
+       [(cfg["test_C"][C_idx], cfg["test_C_hat"][C_idx], cfg["q_hat"], setup, C_idx) for C_idx in range(len(cfg["test_C"]))]
     ))
 
     os.makedirs("results", exist_ok=True)
