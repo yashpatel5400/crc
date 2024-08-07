@@ -11,7 +11,7 @@ import torch
 
 from polgrad.policygradient import PolicyGradientOptions, run_policy_gradient, run_dynamics_gradient, Regularizer
 from polgrad.ltimult import LQRSysMult, dare_mult, dlyap_mult
-from robust import algo1, algo2
+from polgrad.robust import algo1, algo2
 
 def get_noise_matrices(mult_noise_method, n, m, p):
     if mult_noise_method == 'random':
