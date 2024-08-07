@@ -131,6 +131,8 @@ if __name__ == "__main__":
     plot_titles = {
         "airfoil": r"Airfoil\ Calibration",
         "load_pos": r"Load\ Postioning\ Calibration",
+        "pendulum": r"Pendulum\ Calibration",
+        "battery": r"Battery\ Calibration",
     }    
     plot_calibration(plot_titles[setup], cal_scores, test_scores)
     plt.savefig(os.path.join("experiments", f"{setup}.png"))

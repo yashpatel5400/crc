@@ -88,6 +88,172 @@ def airfoil_generate_dynamics_matrices(num_samples):
     
     return thetas, (As, Bs)
 
+pendulum_means = {
+    # Motor parameters
+    "R_m": 8.4,
+    "K_t": 0.042,
+    "K_m": 0.042,
+
+    # Rotor parameters
+    "m_p": 0.095,
+    "L_r": 0.085,
+    "D_r": 0.0015,
+
+    # Pendulum parameters
+    "M_p": 0.024,
+    "L_p": 0.129,
+    "D_p": 0.0005,
+}
+
+pendulum_means["J_r"] = (pendulum_means["m_p"] * pendulum_means["L_r"]**2) / 12
+pendulum_means["J_p"] = (pendulum_means["M_p"] * pendulum_means["L_p"]**2) / 12
+pendulum_means["J_T"] = pendulum_means["J_p"] * pendulum_means["m_p"] * pendulum_means["L_r"]**2 + pendulum_means["J_r"] * pendulum_means["J_p"] + (1/4) * pendulum_means["J_r"] * pendulum_means["m_p"] * pendulum_means["L_p"]**2
+
+pendulum_std_devs = {key: np.random.random() for key, value in pendulum_means.items()}
+
+def pendulum_generate_dynamics_matrices(num_samples):
+    scale = 1
+    M_p = np.expand_dims(np.abs(np.random.normal(pendulum_means["M_p"], pendulum_std_devs["M_p"], num_samples)), axis=0) * scale
+    m_p = np.expand_dims(np.abs(np.random.normal(pendulum_means["m_p"], pendulum_std_devs["m_p"], num_samples)), axis=0) * scale
+    L_p = np.expand_dims(np.abs(np.random.normal(pendulum_means["L_p"], pendulum_std_devs["L_p"], num_samples)), axis=0) * scale
+    L_r = np.expand_dims(np.abs(np.random.normal(pendulum_means["L_r"], pendulum_std_devs["L_r"], num_samples)), axis=0) * scale
+    J_T = np.expand_dims(np.abs(np.random.normal(pendulum_means["J_T"], pendulum_std_devs["J_T"], num_samples)), axis=0) * scale
+    J_p = np.expand_dims(np.abs(np.random.normal(pendulum_means["J_p"], pendulum_std_devs["J_p"], num_samples)), axis=0) * scale
+    J_r = np.expand_dims(np.abs(np.random.normal(pendulum_means["J_r"], pendulum_std_devs["J_r"], num_samples)), axis=0) * scale
+    D_p = np.expand_dims(np.abs(np.random.normal(pendulum_means["D_p"], pendulum_std_devs["D_p"], num_samples)), axis=0) * scale
+    D_r = np.expand_dims(np.abs(np.random.normal(pendulum_means["D_r"], pendulum_std_devs["D_r"], num_samples)), axis=0) * scale
+
+    thetas = np.vstack([M_p, L_p, L_r, J_T, J_p, J_r, m_p, D_p, D_r]).T
+    div_J_T = np.expand_dims(np.expand_dims(J_T.flatten(), axis=-1), axis=-1)
+    
+    As = np.zeros((num_samples, 4, 4))
+    As[:,0,2] = J_T
+    As[:,1,3] = J_T
+
+    As[:,2,1] = 1/4 * M_p ** 2 * L_p ** 2 * L_r ** 2 * g
+    As[:,2,2] = -(J_p + 1/4 * m_p * L_p ** 2) * D_r
+    As[:,2,3] = 1/2 * m_p * L_p * L_r * D_p
+
+    As[:,3,1] = -1/2 * m_p * L_p * g * (J_r + m_p * L_r ** 2)
+    As[:,3,2] = 1/2 * m_p * L_p * L_r * D_r
+    As[:,3,3] = -(J_r + m_p * L_r ** 2) * D_p
+    As /= div_J_T
+
+    Bs = np.zeros((num_samples, 4, 1))
+    Bs[:,2,0] = J_p + 1/4 * m_p * L_p ** 2
+    Bs[:,3,0] = -1/2 * m_p * L_p * L_r
+    Bs /= div_J_T
+
+    return thetas, (As, Bs)
+
+# Define the constants
+T = 298.15
+F = 96485
+R = 8.314
+E = 1.4
+
+means = {
+    "N": 37,
+    "K2": 8.768e-10,
+    "K3": 3.222e-10,
+    "K4": 6.825e-10,
+    "K5": 5.897e-10,
+    "Vs": 40,
+    "Vt": 500,
+    "S": 24,
+    "d": 1.27e-3,
+    "le": 6,
+    "we": 0.04,
+    "he": 4,
+    "r": 0.03,
+    "Cc2": 1.0,
+    "Cc3": 1.0,
+    "Cc4": 1.0,
+    "Cc5": 1.0,
+    "Ct2": 1.0,
+    "Ct3": 1.0,
+    "Ct4": 1.0,
+    "Ct5": 1.0
+}
+
+std_devs = {key: value for key, value in means.items()}
+
+def battery_generate_dynamics_matrices(num_samples):
+    Vs  = np.expand_dims(np.random.normal(means["Vs"], std_devs["Vs"], num_samples), axis=0)
+    Vt  = np.expand_dims(np.random.normal(means["Vt"], std_devs["Vt"], num_samples), axis=0)
+    
+    S   = np.expand_dims(np.random.normal(means["S"], std_devs["S"], num_samples), axis=0)
+    d   = np.expand_dims(np.random.normal(means["d"], std_devs["d"], num_samples), axis=0)
+    N   = np.expand_dims(np.random.normal(means["N"], std_devs["N"], num_samples), axis=0)
+    
+    K2  = np.expand_dims(np.random.normal(means["K2"], std_devs["K2"], num_samples), axis=0)
+    K3  = np.expand_dims(np.random.normal(means["K3"], std_devs["K3"], num_samples), axis=0)
+    K4  = np.expand_dims(np.random.normal(means["K4"], std_devs["K4"], num_samples), axis=0)
+    K5  = np.expand_dims(np.random.normal(means["K5"], std_devs["K5"], num_samples), axis=0)
+    
+    Cc2 = np.expand_dims(np.random.normal(means["Cc2"], std_devs["Cc2"], num_samples), axis=0)
+    Cc3 = np.expand_dims(np.random.normal(means["Cc3"], std_devs["Cc3"], num_samples), axis=0)
+    Cc4 = np.expand_dims(np.random.normal(means["Cc4"], std_devs["Cc4"], num_samples), axis=0)
+    Cc5 = np.expand_dims(np.random.normal(means["Cc5"], std_devs["Cc5"], num_samples), axis=0)
+    
+    Ct2 = np.expand_dims(np.random.normal(means["Ct2"], std_devs["Ct2"], num_samples), axis=0)
+    Ct3 = np.expand_dims(np.random.normal(means["Ct3"], std_devs["Ct3"], num_samples), axis=0)
+    Ct4 = np.expand_dims(np.random.normal(means["Ct4"], std_devs["Ct4"], num_samples), axis=0)
+    Ct5 = np.expand_dims(np.random.normal(means["Ct5"], std_devs["Ct5"], num_samples), axis=0)
+
+    thetas = np.vstack([Vs, Vt, S, d, N, K2, K3, K4, K5, Cc2, Cc3, Cc4, Cc5, Ct2, Ct3, Ct4, Ct5]).T
+
+    As = np.zeros((num_samples, 9, 9))
+    Bs = np.zeros((num_samples, 9, 1))
+    
+    As[:,0,0] = 2*(-E*d - N*K2*S)/(Vs*d)
+    As[:,0,2] = -2*N*K4*S/(Vs*d)
+    As[:,0,3] = -4*N*K5*S/(Vs*d)
+    As[:,0,4] = 2*E/Vs
+
+    As[:,1,1] = 2*(-E*d - N*K3*S)/(Vs*d)
+    As[:,1,2] = 4*N*K4*S/(Vs*d)
+    As[:,1,3] = 6*N*K5*S/(Vs*d)
+    As[:,1,5] = 2*E/Vs
+
+    As[:,2,0] = 6*N*K2*S/(Vs*d)
+    As[:,2,1] = 4*N*K3*S/(Vs*d)
+    As[:,2,2] = 2*(-E*d - N*K4*S)/(Vs*d)
+    As[:,2,6] = 2*E/Vs
+
+    As[:,3,0] = -4*N*K2*S/(Vs*d)
+    As[:,3,1] = -2*N*K3*S/(Vs*d)
+    As[:,3,3] = 2*(-E*d - N*K5*S)/(Vs*d)
+    As[:,3,6] = 2*E/Vs
+
+    As[:,4,0] = E/Vt
+    As[:,4,4] = -E/Vt
+
+    As[:,5,1] = E/Vt
+    As[:,5,5] = -E/Vt
+
+    As[:,6,2] = E/Vt
+    As[:,6,6] = -E/Vt
+
+    As[:,7,3] = E/Vt
+    As[:,7,7] = -E/Vt
+
+    As[:,8,0] = N*R*T/(F*Cc2)
+    As[:,8,1] = -N*R*T/(F*Cc3)
+    As[:,8,2] = -N*R*T/(F*Cc4)
+    As[:,8,3] = -N*R*T/(F*Cc5)
+
+    Bs[:,0,0] = (Ct2 - Cc2)/(Vs/2)
+    Bs[:,1,0] = (Ct3 - Cc3)/(Vs/2)
+    Bs[:,2,0] = (Ct4 - Cc4)/(Vs/2)
+    Bs[:,3,0] = (Ct5 - Cc5)/(Vs/2)
+    Bs[:,4,0] = (Cc2 - Ct2)/Vt
+    Bs[:,5,0] = (Cc3 - Ct3)/Vt
+    Bs[:,6,0] = (Cc4 - Ct4)/Vt
+    Bs[:,7,0] = (Cc5 - Ct5)/Vt
+
+    return thetas, (As, Bs)
+
 # m: trajectory length
 def generate_system_trajectories(As, Bs, m = 25):
     n = As.shape[-1]
@@ -148,6 +314,8 @@ if __name__ == "__main__":
     setup_to_generate_func = {
         "airfoil": airfoil_generate_dynamics_matrices,
         "load_pos": load_pos_generate_dynamics_matrices,
+        "pendulum": pendulum_generate_dynamics_matrices,
+        "battery": battery_generate_dynamics_matrices,
     }
 
     thetas, _, (A_hats, B_hats) = generate_data(setup_to_generate_func[setup], 2_000)
