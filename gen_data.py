@@ -152,7 +152,7 @@ F = 96485
 R = 8.314
 E = 1.4
 
-means = {
+battery_means = {
     "N": 37,
     "K2": 8.768e-10,
     "K3": 3.222e-10,
@@ -176,30 +176,30 @@ means = {
     "Ct5": 1.0
 }
 
-std_devs = {key: value for key, value in means.items()}
+battery_std_devs = {key: value for key, value in battery_means.items()}
 
 def battery_generate_dynamics_matrices(num_samples):
-    Vs  = np.expand_dims(np.random.normal(means["Vs"], std_devs["Vs"], num_samples), axis=0)
-    Vt  = np.expand_dims(np.random.normal(means["Vt"], std_devs["Vt"], num_samples), axis=0)
+    Vs  = np.expand_dims(np.random.normal(battery_means["Vs"], battery_std_devs["Vs"], num_samples), axis=0)
+    Vt  = np.expand_dims(np.random.normal(battery_means["Vt"], battery_std_devs["Vt"], num_samples), axis=0)
     
-    S   = np.expand_dims(np.random.normal(means["S"], std_devs["S"], num_samples), axis=0)
-    d   = np.expand_dims(np.random.normal(means["d"], std_devs["d"], num_samples), axis=0)
-    N   = np.expand_dims(np.random.normal(means["N"], std_devs["N"], num_samples), axis=0)
+    S   = np.expand_dims(np.random.normal(battery_means["S"], battery_std_devs["S"], num_samples), axis=0)
+    d   = np.expand_dims(np.random.normal(battery_means["d"], battery_std_devs["d"], num_samples), axis=0)
+    N   = np.expand_dims(np.random.normal(battery_means["N"], battery_std_devs["N"], num_samples), axis=0)
     
-    K2  = np.expand_dims(np.random.normal(means["K2"], std_devs["K2"], num_samples), axis=0)
-    K3  = np.expand_dims(np.random.normal(means["K3"], std_devs["K3"], num_samples), axis=0)
-    K4  = np.expand_dims(np.random.normal(means["K4"], std_devs["K4"], num_samples), axis=0)
-    K5  = np.expand_dims(np.random.normal(means["K5"], std_devs["K5"], num_samples), axis=0)
+    K2  = np.expand_dims(np.random.normal(battery_means["K2"], battery_std_devs["K2"], num_samples), axis=0)
+    K3  = np.expand_dims(np.random.normal(battery_means["K3"], battery_std_devs["K3"], num_samples), axis=0)
+    K4  = np.expand_dims(np.random.normal(battery_means["K4"], battery_std_devs["K4"], num_samples), axis=0)
+    K5  = np.expand_dims(np.random.normal(battery_means["K5"], battery_std_devs["K5"], num_samples), axis=0)
     
-    Cc2 = np.expand_dims(np.random.normal(means["Cc2"], std_devs["Cc2"], num_samples), axis=0)
-    Cc3 = np.expand_dims(np.random.normal(means["Cc3"], std_devs["Cc3"], num_samples), axis=0)
-    Cc4 = np.expand_dims(np.random.normal(means["Cc4"], std_devs["Cc4"], num_samples), axis=0)
-    Cc5 = np.expand_dims(np.random.normal(means["Cc5"], std_devs["Cc5"], num_samples), axis=0)
+    Cc2 = np.expand_dims(np.random.normal(battery_means["Cc2"], battery_std_devs["Cc2"], num_samples), axis=0)
+    Cc3 = np.expand_dims(np.random.normal(battery_means["Cc3"], battery_std_devs["Cc3"], num_samples), axis=0)
+    Cc4 = np.expand_dims(np.random.normal(battery_means["Cc4"], battery_std_devs["Cc4"], num_samples), axis=0)
+    Cc5 = np.expand_dims(np.random.normal(battery_means["Cc5"], battery_std_devs["Cc5"], num_samples), axis=0)
     
-    Ct2 = np.expand_dims(np.random.normal(means["Ct2"], std_devs["Ct2"], num_samples), axis=0)
-    Ct3 = np.expand_dims(np.random.normal(means["Ct3"], std_devs["Ct3"], num_samples), axis=0)
-    Ct4 = np.expand_dims(np.random.normal(means["Ct4"], std_devs["Ct4"], num_samples), axis=0)
-    Ct5 = np.expand_dims(np.random.normal(means["Ct5"], std_devs["Ct5"], num_samples), axis=0)
+    Ct2 = np.expand_dims(np.random.normal(battery_means["Ct2"], battery_std_devs["Ct2"], num_samples), axis=0)
+    Ct3 = np.expand_dims(np.random.normal(battery_means["Ct3"], battery_std_devs["Ct3"], num_samples), axis=0)
+    Ct4 = np.expand_dims(np.random.normal(battery_means["Ct4"], battery_std_devs["Ct4"], num_samples), axis=0)
+    Ct5 = np.expand_dims(np.random.normal(battery_means["Ct5"], battery_std_devs["Ct5"], num_samples), axis=0)
 
     thetas = np.vstack([Vs, Vt, S, d, N, K2, K3, K4, K5, Cc2, Cc3, Cc4, Cc5, Ct2, Ct3, Ct4, Ct5]).T
 
@@ -251,6 +251,138 @@ def battery_generate_dynamics_matrices(num_samples):
     Bs[:,5,0] = (Cc3 - Ct3)/Vt
     Bs[:,6,0] = (Cc4 - Ct4)/Vt
     Bs[:,7,0] = (Cc5 - Ct5)/Vt
+
+    return thetas, (As, Bs)
+
+# Fusion rod control
+# Note that some of these values were not reported in the original paper and were instead pulled from
+# "Static output feedback H∞ based integral sliding mode control law design for nuclear reactor power-level."
+fusion_means = {
+    # reactivity coefficients of the fuel and coolant temperatures (https://arhiv.djs.si/proc/nene2015/pdf/NENE2015_416.pdf)
+    "alpha_c": -2.0,
+    "alpha_f": -14.0,
+
+    "beta": 0.0065,  # Total delayed neutron fraction
+    "beta1": 0.00021,  # Fraction of 1st group neutron precursor
+    "beta2": 0.00225,  # Fraction of 2nd group neutron precursor
+    "beta3": 0.00404,  # Fraction of 3rd group neutron precursor
+    
+    "Lambda": 2.1e-5,  # s (prompt neutron lifetime)
+    "lambda_I": 1e-4,  # s^-1 (decay constant of iodine)
+    "lambda_X": 2.9e-5,  # s^-1 (decay constant of xenon)
+    "lambda1": 0.0124,  # s^-1 (decay constant of 1st group neutron precursor)
+    "lambda2": 0.0369,  # s^-1 (decay constant of 2nd group neutron precursor)
+    "lambda3": 0.632,  # s^-1 (decay constant of 3rd group neutron precursor)
+    
+    "mu_c": 1e6,  # J/K (heat capacity of the coolant): https://www.sciencedirect.com/science/article/am/pii/S0306454917301391
+    "mu_f": 26.3e6,  # J/K (heat capacity of the fuel)
+    
+    "gamma_X": 0.003,  # Fission yield of xenon
+    "gamma_I": 0.059,  # Fission yield of iodine
+    
+    "sigma_X": 3.5e-18,  # cm^2 (microscopic absorption cross-section of xenon)
+    "Sigma_f": 0.3358,  # s^-1 (effective microscopic fission cross-section)
+    
+    "epsilon_f": 0.92,  # Fraction of reactor power deposited in the fuel
+    
+    "P0": 3000e6,  # W (3000 MW)
+
+    "nu": 2.43, # average number of fission neutrons: https://www.sciencedirect.com/topics/mathematics/fission-neutron
+    "Omega": 0.7, # heat transfer coefficient between fuel and coolant: https://www.sciencedirect.com/science/article/pii/S0149197020302353
+    "M": -2.0 * 13.7, # mass flow rate multiplied by heat capacity of the coolant: https://www.sciencedirect.com/science/article/pii/S2214157X21000770
+    "theta": 1,
+    
+    "phi0": 3.4e5, # neutron flux: https://www.sciencedirect.com/topics/physics-and-astronomy/neutron-flux-density 
+    "X0": 1.31e3,   # xenon concentration: sciencedirect.com/science/article/pii/S0306454911003744
+
+    # unused constants below
+    "core_height": 400,  # cm
+    "core_radius": 200,  # cm
+    "v_th": 220000,  # cm/s (mean velocity of thermal neutrons)
+    "G_r": 14.5e-3,  # K/K (total reactivity worth of control rod)
+}
+
+fusion_std_devs = {}
+for key, value in fusion_means.items():
+    if value < 1e2:
+        fusion_std_devs[key] = np.abs(value)
+    else:
+        fusion_std_devs[key] = np.sqrt(np.abs(value))
+
+def fusion_generate_dynamics_matrices(num_samples):
+    # Define constants
+    alpha_c = np.expand_dims(np.random.normal(fusion_means["alpha_c"], fusion_std_devs["alpha_c"], num_samples), axis=0)    # αc
+    alpha_f = np.expand_dims(np.random.normal(fusion_means["alpha_f"], fusion_std_devs["alpha_f"], num_samples), axis=0)    # αf
+    
+    beta = np.expand_dims(np.random.normal(fusion_means["beta"], fusion_std_devs["beta"], num_samples), axis=0)             # β
+    beta1 = np.expand_dims(np.random.normal(fusion_means["beta1"], fusion_std_devs["beta1"], num_samples), axis=0)          # β1
+    beta2 = np.expand_dims(np.random.normal(fusion_means["beta2"], fusion_std_devs["beta2"], num_samples), axis=0)          # β2
+    beta3 = np.expand_dims(np.random.normal(fusion_means["beta3"], fusion_std_devs["beta3"], num_samples), axis=0)          # β3
+    
+    Lambda = np.expand_dims(np.random.normal(fusion_means["Lambda"], fusion_std_devs["Lambda"], num_samples), axis=0)       # Λ
+    lambda_I = np.expand_dims(np.random.normal(fusion_means["lambda_I"], fusion_std_devs["lambda_I"], num_samples), axis=0) # λI
+    lambda_X = np.expand_dims(np.random.normal(fusion_means["lambda_X"], fusion_std_devs["lambda_X"], num_samples), axis=0) # λx
+    lambda1 = np.expand_dims(np.random.normal(fusion_means["lambda1"], fusion_std_devs["lambda1"], num_samples), axis=0)    # λ1
+    lambda2 = np.expand_dims(np.random.normal(fusion_means["lambda2"], fusion_std_devs["lambda2"], num_samples), axis=0)    # λ2
+    lambda3 = np.expand_dims(np.random.normal(fusion_means["lambda3"], fusion_std_devs["lambda3"], num_samples), axis=0)    # λ3
+    
+    mu_f = np.expand_dims(np.random.normal(fusion_means["mu_f"], fusion_std_devs["mu_f"], num_samples), axis=0)             # μf
+    mu_c = np.expand_dims(np.random.normal(fusion_means["mu_c"], fusion_std_devs["mu_c"], num_samples), axis=0)             # μc
+    
+    gamma_X = np.expand_dims(np.random.normal(fusion_means["gamma_X"], fusion_std_devs["gamma_X"], num_samples), axis=0)    # γx
+    gamma_I = np.expand_dims(np.random.normal(fusion_means["gamma_I"], fusion_std_devs["gamma_I"], num_samples), axis=0)    # γI
+
+    sigma_X = np.expand_dims(np.random.normal(fusion_means["sigma_X"], fusion_std_devs["sigma_X"], num_samples), axis=0)    # σx
+    Sigma_f = np.expand_dims(np.random.normal(fusion_means["Sigma_f"], fusion_std_devs["Sigma_f"], num_samples), axis=0)    # Σf
+    
+    nu = np.expand_dims(np.random.normal(fusion_means["nu"], fusion_std_devs["nu"], num_samples), axis=0)                       # ν
+    epsilon_f = np.expand_dims(np.random.normal(fusion_means["epsilon_f"], fusion_std_devs["epsilon_f"], num_samples), axis=0)  # εf
+    Omega = np.expand_dims(np.random.normal(fusion_means["Omega"], fusion_std_devs["Omega"], num_samples), axis=0)              # Ω
+    M = np.expand_dims(np.random.normal(fusion_means["M"], fusion_std_devs["M"], num_samples), axis=0)                          # M
+    theta = np.expand_dims(np.random.normal(fusion_means["theta"], fusion_std_devs["theta"], num_samples), axis=0)              # θ
+
+    P0 = np.expand_dims(np.random.normal(fusion_means["P0"], fusion_std_devs["P0"], num_samples), axis=0)                       # P0
+    phi0 = np.expand_dims(np.random.normal(fusion_means["phi0"], fusion_std_devs["phi0"], num_samples), axis=0)                 # φ0
+    X0 = np.expand_dims(np.random.normal(fusion_means["X0"], fusion_std_devs["X0"], num_samples), axis=0)                       # X0
+    
+    thetas = np.vstack([alpha_c, alpha_f, beta, beta1, beta2, beta3, Lambda, lambda_I, lambda_X, lambda1, lambda2, lambda3, mu_f, mu_c, gamma_X, gamma_I, sigma_X, Sigma_f, nu, epsilon_f, Omega, M, theta, P0, phi0, X0]).T
+
+    As = np.zeros((num_samples, 8, 8))
+    Bs = np.zeros((num_samples, 8, 1))
+
+    As[:,0,0] = -beta / Lambda
+    As[:,0,1] = beta1 / Lambda
+    As[:,0,2] = beta2 / Lambda
+    As[:,0,3] = beta3 / Lambda
+    As[:,0,4] = alpha_f * theta / Lambda
+    As[:,0,5] = alpha_c * theta / (2 * Lambda)
+    As[:,0,6] = -sigma_X * theta / (nu * Sigma_f * Lambda)
+
+    As[:,1,0] = lambda1
+    As[:,1,1] = -lambda1
+
+    As[:,2,0] = lambda2
+    As[:,2,2] = -lambda2
+
+    As[:,3,0] = lambda3
+    As[:,3,3] = -lambda3
+
+    As[:,4,0] = epsilon_f * P0 / mu_f
+    As[:,4,4] = -Omega / mu_f
+    As[:,4,5] = Omega / mu_f
+
+    As[:,5,0] = (1 - epsilon_f) * P0 / mu_c
+    As[:,5,4] = Omega / mu_f
+    As[:,5,5] = -(2 * M + Omega) / (2 * mu_c)
+
+    As[:,6,0] = (gamma_X * Sigma_f - sigma_X * X0) * phi0 * P0
+    As[:,6,6] = -(lambda_X + phi0 * P0 * theta)
+    As[:,6,7] = lambda_I
+
+    As[:,7,0] = gamma_I * Sigma_f * phi0 * P0
+    As[:,7,7] = -lambda_I
+
+    Bs[:,0,0] = theta / Lambda
 
     return thetas, (As, Bs)
 
@@ -316,6 +448,7 @@ if __name__ == "__main__":
         "load_pos": load_pos_generate_dynamics_matrices,
         "pendulum": pendulum_generate_dynamics_matrices,
         "battery": battery_generate_dynamics_matrices,
+        "fusion": fusion_generate_dynamics_matrices,
     }
 
     thetas, _, (A_hats, B_hats) = generate_data(setup_to_generate_func[setup], 2_000)

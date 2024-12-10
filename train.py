@@ -46,7 +46,7 @@ def train_net(net, thetas_train, As_train, Bs_train):
     epochs      = 1_000
     batch_size  = 100
     num_batches = len(thetas_train) // batch_size
-
+    
     losses = []
     for epoch in range(epochs):  # loop over the dataset multiple times
         rolling_loss = 0
