@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import einops
 import seaborn as sns
 from pydmd import DMDc
 
@@ -257,6 +258,7 @@ def battery_generate_dynamics_matrices(num_samples):
 # Fusion rod control
 # Note that some of these values were not reported in the original paper and were instead pulled from
 # "Static output feedback H∞ based integral sliding mode control law design for nuclear reactor power-level."
+# Additionally, some of the units of the values were changed for numerical stability from their reported values of the paper
 fusion_means = {
     # reactivity coefficients of the fuel and coolant temperatures (https://arhiv.djs.si/proc/nene2015/pdf/NENE2015_416.pdf)
     "alpha_c": -2.0,
@@ -267,39 +269,34 @@ fusion_means = {
     "beta2": 0.00225,  # Fraction of 2nd group neutron precursor
     "beta3": 0.00404,  # Fraction of 3rd group neutron precursor
     
-    "Lambda": 2.1e-5,  # s (prompt neutron lifetime)
-    "lambda_I": 1e-4,  # s^-1 (decay constant of iodine)
-    "lambda_X": 2.9e-5,  # s^-1 (decay constant of xenon)
+    "Lambda": 1e6 * 2.1e-5,    # us^-1 (prompt neutron lifetime)
+    "lambda_I": 1e6 * 1e-4,    # us^-1 (decay constant of iodine)
+    "lambda_X": 1e6 * 2.9e-5,  # us^-1 (decay constant of xenon)
+
     "lambda1": 0.0124,  # s^-1 (decay constant of 1st group neutron precursor)
     "lambda2": 0.0369,  # s^-1 (decay constant of 2nd group neutron precursor)
     "lambda3": 0.632,  # s^-1 (decay constant of 3rd group neutron precursor)
     
-    "mu_c": 1e6,  # J/K (heat capacity of the coolant): https://www.sciencedirect.com/science/article/am/pii/S0306454917301391
-    "mu_f": 26.3e6,  # J/K (heat capacity of the fuel)
+    "mu_c": .001,  # GJ/K (heat capacity of the coolant): https://www.sciencedirect.com/science/article/am/pii/S0306454917301391
+    "mu_f": .0263, # GJ/K (heat capacity of the fuel)
     
     "gamma_X": 0.003,  # Fission yield of xenon
     "gamma_I": 0.059,  # Fission yield of iodine
     
-    "sigma_X": 3.5e-18,  # cm^2 (microscopic absorption cross-section of xenon)
+    "sigma_X": 3.5e-12,  # m^2 (microscopic absorption cross-section of xenon)
     "Sigma_f": 0.3358,  # s^-1 (effective microscopic fission cross-section)
     
     "epsilon_f": 0.92,  # Fraction of reactor power deposited in the fuel
     
-    "P0": 3000e6,  # W (3000 MW)
+    "P0": 3,  # GW
 
     "nu": 2.43, # average number of fission neutrons: https://www.sciencedirect.com/topics/mathematics/fission-neutron
     "Omega": 0.7, # heat transfer coefficient between fuel and coolant: https://www.sciencedirect.com/science/article/pii/S0149197020302353
     "M": -2.0 * 13.7, # mass flow rate multiplied by heat capacity of the coolant: https://www.sciencedirect.com/science/article/pii/S2214157X21000770
     "theta": 1,
     
-    "phi0": 3.4e5, # neutron flux: https://www.sciencedirect.com/topics/physics-and-astronomy/neutron-flux-density 
+    "phi0": 3.4, # neutron flux: https://www.sciencedirect.com/topics/physics-and-astronomy/neutron-flux-density 
     "X0": 1.31e3,   # xenon concentration: sciencedirect.com/science/article/pii/S0306454911003744
-
-    # unused constants below
-    "core_height": 400,  # cm
-    "core_radius": 200,  # cm
-    "v_th": 220000,  # cm/s (mean velocity of thermal neutrons)
-    "G_r": 14.5e-3,  # K/K (total reactivity worth of control rod)
 }
 
 fusion_std_devs = {}
@@ -384,6 +381,9 @@ def fusion_generate_dynamics_matrices(num_samples):
 
     Bs[:,0,0] = theta / Lambda
 
+    # HACK: normalize dynamics to avoid numerical instability
+    maxes = einops.reduce(As, "n h w -> n", "max")
+    As /= np.expand_dims(np.expand_dims(maxes, axis=-1), axis=-1)
     return thetas, (As, Bs)
 
 # m: trajectory length

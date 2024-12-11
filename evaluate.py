@@ -12,6 +12,7 @@ setup_to_table_name = {
     "load_pos": "Load Positioning",
     "pendulum": "Furuta Pendulum",
     "battery": "DC Microgrids",
+    "fusion": "Fusion Plant",
 }
 
 label_to_table_name = {
