@@ -5,7 +5,7 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.linalg import solve_discrete_are
+from scipy.linalg import solve_discrete_are, inv, eigvals
 import multiprocessing
 import torch
 
@@ -162,6 +162,96 @@ def eval_controller(C, K):
     nominal_system = init_system("random", "none", C, K)
     return nominal_system.c
 
+def hinf_weighted(A, B, gamma, W_x=None, W_u=None):
+    n, m = B.shape
+
+    # Default weights
+    if W_x is None:
+        W_x = np.eye(n)
+    if W_u is None:
+        W_u = np.eye(m)
+
+    # Performance output: z = [W_x x; W_u u]
+    C1 = np.vstack([W_x, np.zeros((m, n))])
+    D12 = np.vstack([np.zeros((n, m)), W_u])
+
+    Q = C1.T @ C1
+    R = D12.T @ D12
+
+    # Robustified R
+    R_rob = R - (1 / gamma**2) * (B.T @ B)
+    if np.any(eigvals(R_rob).real <= 0):
+        raise ValueError("gamma too small — R_rob is not positive definite")
+
+    # Solve ARE
+    P = solve_discrete_are(A, B, Q, R_rob)
+
+    # Compute K
+    Lambda = np.eye(m) + B.T @ P @ B - (1 / gamma**2) * B.T @ B
+    K = inv(Lambda) @ B.T @ P @ A
+    return K
+
+
+def hinf_weighted_bisection(C, W_x=None, W_u=None,
+                            gamma_min=1.0, gamma_max=100.0,
+                            tol=1e-3, verbose=True):
+    n, _ = C.shape
+    A, B = C[:,:n], C[:,n:]
+
+    def is_feasible(gamma):
+        try:
+            K = hinf_weighted(A, B, gamma, W_x, W_u)
+            A_cl = A - B @ K
+            return np.max(np.abs(np.linalg.eigvals(A_cl))) < 1.0, K
+        except:
+            return False, None
+
+    K_opt = None
+    gamma_opt = gamma_max
+
+    while gamma_max - gamma_min > tol:
+        gamma = (gamma_min + gamma_max) / 2
+        feasible, K = is_feasible(gamma)
+        if verbose:
+            print(f"Trying gamma = {gamma:.4f} → {'feasible' if feasible else 'infeasible'}")
+        if feasible:
+            gamma_opt = gamma
+            K_opt = K
+            gamma_max = gamma
+        else:
+            gamma_min = gamma
+    print(f"Optimal gamma: {gamma_opt}")
+
+    if K_opt is not None:
+        return -K_opt # use -K gains conventions elsewhere in code
+    return None
+
+
+def generate_hinf_weights(C):
+    n, _ = C.shape
+    A, B = C[:,:n], C[:,n:]
+    n = A.shape[0]
+    m = B.shape[1]
+
+    weights = {}
+
+    # Scenario 1: Aggressive state regulation
+    W_x_aggressive = 10 * np.eye(n)
+    W_u_aggressive = np.eye(m)
+    weights['aggressive'] = (W_x_aggressive, W_u_aggressive)
+
+    # Scenario 2: Conservative control usage
+    W_x_conservative = np.eye(n)
+    W_u_conservative = 10 * np.eye(m)
+    weights['conservative'] = (W_x_conservative, W_u_conservative)
+
+    # Scenario 3: Balanced performance
+    W_x_balanced = 5 * np.eye(n)
+    W_u_balanced = 5 * np.eye(m)
+    weights['balanced'] = (W_x_balanced, W_u_balanced)
+
+    return weights
+
 def hinf(C_hat, gamma=10.0):
     n, _ = C_hat.shape
     A_hat, B_hat = C_hat[:,:n], C_hat[:,n:]
@@ -230,13 +320,12 @@ def get_ctrls(args):
         ctrls["mult_alg2"] = None
         
     # baseline from: standard h-infinity control
-    for gamma in [0.5,1.0]:
-        ctrl_name = f"hinf_{gamma}"
-        try:
-            ctrls[ctrl_name] = hinf(C_hat, gamma=gamma)
-        except:
-            ctrls[ctrl_name] = None
-
+    weights = generate_hinf_weights(C_hat)
+    for weight_profile in weights:
+        ctrl_name = f"hinf_{weight_profile}"
+        (W_x, W_u) = weights[weight_profile]
+        ctrls[ctrl_name] = hinf_weighted_bisection(C_hat, W_x=W_x, W_u=W_u)
+        
     # baselines from: "Learning optimal controllers for linear systems with multiplicative noise via policy gradient"
     for mult_noise_method in ["random", "rowcol"]:
         for noise in ["critical", "olmss_weak", "olmsus"]:

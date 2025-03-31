@@ -39,11 +39,10 @@ class ContextualLQR(nn.Module):
         B = self.fc_B(x).reshape((-1,) + self.B_shape)
         return A, B
 
-def train_net(net, thetas_train, As_train, Bs_train):
+def train_net(net, thetas_train, As_train, Bs_train, epochs):
     optimizer = optim.Adam(net.parameters())
     criterion = nn.MSELoss()
 
-    epochs      = 1_000
     batch_size  = 100
     num_batches = len(thetas_train) // batch_size
     
@@ -108,8 +107,17 @@ if __name__ == "__main__":
     with open(os.path.join("data", setup, "test.pkl"), "rb") as f:
         (thetas_test, (As_test, Bs_test)) = pickle.load(f)
 
+    # difficulty of system ID tasks varies, so adapt epochs accordingly
+    epochs = {
+        "airfoil":  100,
+        "load_pos": 100,
+        "pendulum": 100,
+        "battery":  1_000,
+        "fusion":   500,
+    }
+
     net = ContextualLQR(thetas_train.shape[1:], tuple(As_train.shape[1:]), tuple(Bs_train.shape[1:])).to(device)
-    train_net(net, thetas_train, As_train, Bs_train)
+    train_net(net, thetas_train, As_train, Bs_train, epochs[setup])
 
     alpha = 0.05
     _, cal_scores  = generate_scores(net, thetas_cal, As_cal, Bs_cal)

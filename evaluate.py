@@ -25,8 +25,9 @@ label_to_table_name = {
     "crc": "CPC",
     "mult_alg1": "Shared Lyapunov",
     "mult_alg2": "Auxiliary Stabilizer",
-    "hinf_0.5": r"$\mathcal{H}_{\infty}(0.5)$",
-    "hinf_1.0": r"$\mathcal{H}_{\infty}(1.0)$",
+    "hinf_aggressive": r"$\mathcal{H}_{\infty} (1)$",
+    "hinf_conservative": r"$\mathcal{H}_{\infty} (2)$",
+    "hinf_balanced": r"$\mathcal{H}_{\infty} (3)$",
 }
 
 def populate_results(cfg, controller_trials, raw_setup, optimal_values_df, percent_filter_df):
@@ -40,9 +41,10 @@ def populate_results(cfg, controller_trials, raw_setup, optimal_values_df, perce
             else:
                 C = cfg["test_C"][trial_idx]
                 if isinstance(controllers[controller], tuple):
-                    evals[controller] = eval_controller(C, controllers[controller][0])
+                    K = controllers[controller][0]
                 else:
-                    evals[controller] = eval_controller(C, controllers[controller])
+                    K = controllers[controller]
+                evals[controller] = eval_controller(C, K)
         controller_evals.append(evals)
     
     controller_algs = sorted(list(controller_evals[0].keys()))

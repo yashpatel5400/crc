@@ -14,6 +14,8 @@ from pydmd import DMDc
 
 device = "cuda"
 
+np.random.seed(0)
+
 # distribution parameters need to be fixed for the simulation
 mu_m_B, sigma_m_B = np.random.random(), np.abs(np.random.random())
 mu_m_L, sigma_m_L = np.random.random(), np.abs(np.random.random())
@@ -46,6 +48,10 @@ def load_pos_generate_dynamics_matrices(num_samples):
     Bs[:,1,0] = 1 / m_L + 1 / m_B
     Bs[:,3,0] = -1 / m_B
 
+    scale = 2.0
+    As *= scale
+    Bs *= scale
+
     return thetas, (As, Bs)
 
 # distribution parameters need to be fixed for the simulation
@@ -59,8 +65,8 @@ mu_G, sigma_G = get_rand_mean_sigma(5)
 mu_L, sigma_L = get_rand_mean_sigma(5)
 mu_N, sigma_N = get_rand_mean_sigma(5)
 
-g       = 1
-U_0     = 1
+g       = 10
+U_0     = 0.5
 theta_0 = 0
 
 def airfoil_generate_dynamics_matrices(num_samples):
@@ -408,11 +414,25 @@ def estimate_dynamics_matrices(system):
     mb_size = system["A"].shape[0]
     A_hats, B_hats = [], []
     for i in range(mb_size):
-        dmdc = DMDc(svd_rank=-1, opt=True)
-        dmdc.fit(system['snapshots'][:,:,i,:], system['u'][i])
-        A_hat, B_hat, _ = dmdc.reconstructed_data() # NOTE: the PyDMD reconstructed_data() function was modified to return the dynamics -- this will *not* work by default
-        A_hats.append(np.real(A_hat))
-        B_hats.append(np.real(B_hat))
+        x_data = system['snapshots'][0,:,i,:]
+        u_data = system['u'][i]
+
+        X = x_data[:, :-1]        # shape (n, T)
+        X_next = x_data[:, 1:]    # shape (n, T)
+        U = u_data                # shape (m, T)
+
+        Z = np.vstack([X, U])     # shape (n + m, T)
+
+        # Solve: X_next ≈ [A B] @ [X; U]
+        AB = X_next @ np.linalg.pinv(Z)  # shape (n, n + m)
+
+        n = x_data.shape[0]
+        A_hat = AB[:, :n]
+        B_hat = AB[:, n:]
+
+        A_hats.append(A_hat)
+        B_hats.append(B_hat)
+
     A_hats = np.array(A_hats).reshape(mb_size, -1)
     B_hats = np.array(B_hats).reshape(mb_size, -1)
     return A_hats, B_hats
