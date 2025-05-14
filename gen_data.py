@@ -48,10 +48,6 @@ def load_pos_generate_dynamics_matrices(num_samples):
     Bs[:,1,0] = 1 / m_L + 1 / m_B
     Bs[:,3,0] = -1 / m_B
 
-    scale = 2.0
-    As *= scale
-    Bs *= scale
-
     return thetas, (As, Bs)
 
 # distribution parameters need to be fixed for the simulation
@@ -65,8 +61,8 @@ mu_G, sigma_G = get_rand_mean_sigma(5)
 mu_L, sigma_L = get_rand_mean_sigma(5)
 mu_N, sigma_N = get_rand_mean_sigma(5)
 
-g       = 10
-U_0     = 0.5
+g       = 1
+U_0     = 1
 theta_0 = 0
 
 def airfoil_generate_dynamics_matrices(num_samples):

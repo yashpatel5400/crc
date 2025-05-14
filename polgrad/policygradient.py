@@ -14,6 +14,7 @@ from polgrad.utility import inplace_print
 class PolicyGradientOptions:
     def __init__(self,
                  epsilon, # Convergence threshold
+                 C_epsilon,
                  eta, # Step size
                  C_eta, # Step size for C dynamics optimization
                  max_iters=1e6, # Max number of steps to take
@@ -38,6 +39,7 @@ class PolicyGradientOptions:
                  ru=None  # Exploration radius
                  ):
         self.epsilon = epsilon
+        self.C_epsilon = C_epsilon
         self.eta = 0.5 if step_direction=='policy_iteration' else eta
         self.C_eta = C_eta
         self.max_iters = max_iters
@@ -841,7 +843,8 @@ def run_dynamics_gradient(SS, PGO, norm, q_hat):
             Cchange = np.inf
         else:
             Cchange = la.norm(C-Cold,'fro')/la.norm(C,'fro')
-        if Cchange < PGO.epsilon:
+        
+        if Cchange < PGO.C_epsilon:
             converged = True
         Cold = C.copy()
 
@@ -878,27 +881,27 @@ def run_dynamics_gradient(SS, PGO, norm, q_hat):
         SS.set_B(C[:,SS.A.shape[1]:])
         
         # Printing
-        if PGO.display_output:
-            # Print iterate messages
-            printstr0 = "{0:9d}".format(iterc+1)
-            printstr1 = " {0:5.3e} / {1:5.3e}".format(stop_quant, stop_thresh)
-            printstr2a = "{0:5.3e}".format(objfun)
-            printstr2b = "{0:5.3e}".format(objfun_best)
-            printstr3 = "         {0:5.3e}".format(Cchange)
-            printstr4 = "{0:5.3e}".format(eta)
-            printstr = printstr0+' | '+printstr1+' | '+printstr2a+' | '+printstr2b+' | '+printstr3+' | '+printstr4
-            if PGO.display_inplace:
-                if iterc==0:
-                    print(" " * len(printstr),end='')
-                inplace_print(printstr)
-            else:
-                print(printstr)
-            if stop: # Print stopping messages
-                print('')
-                if converged:
-                    print('Optimization converged, stopping now')
-                if stop_early:
-                    print('Max iterations exceeded, stopping optimization')
+        # if PGO.display_output:
+        #     # Print iterate messages
+        #     printstr0 = "{0:9d}".format(iterc+1)
+        #     printstr1 = " {0:5.3e} / {1:5.3e}".format(stop_quant, stop_thresh)
+        #     printstr2a = "{0:5.3e}".format(objfun)
+        #     printstr2b = "{0:5.3e}".format(objfun_best)
+        #     printstr3 = "         {0:5.3e}".format(Cchange)
+        #     printstr4 = "{0:5.3e}".format(eta)
+        #     printstr = printstr0+' | '+printstr1+' | '+printstr2a+' | '+printstr2b+' | '+printstr3+' | '+printstr4
+        #     if PGO.display_inplace:
+        #         if iterc==0:
+        #             print(" " * len(printstr),end='')
+        #         inplace_print(printstr)
+        #     else:
+        #         print(printstr)
+        #     if stop: # Print stopping messages
+        #         print('')
+        #         if converged:
+        #             print('Optimization converged, stopping now')
+        #         if stop_early:
+        #             print('Max iterations exceeded, stopping optimization')
 
     print('Policy gradient descent optimization completed after %d iterations' % (iterc+1))
     return C, SS.c

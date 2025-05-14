@@ -107,11 +107,12 @@ if __name__ == "__main__":
     with open(os.path.join("data", setup, "test.pkl"), "rb") as f:
         (thetas_test, (As_test, Bs_test)) = pickle.load(f)
 
-    # difficulty of system ID tasks varies, so adapt epochs accordingly
+    # difficulty of system ID tasks varies, so adapt epochs accordingly: we want to consider a setting where
+    # there is some misspecification (to test robustness), so we do early stopping on the training
     epochs = {
-        "airfoil":  100,
-        "load_pos": 100,
-        "pendulum": 100,
+        "airfoil":  25,
+        "load_pos": 25,
+        "pendulum": 25,
         "battery":  1_000,
         "fusion":   500,
     }
@@ -125,8 +126,9 @@ if __name__ == "__main__":
     N_cal, N_test = len(cal_scores), len(test_scores)
     q_hat = np.quantile(cal_scores, q = 1-alpha)
 
-    alpha = 0.05
-    q_hat = np.quantile(cal_scores, q = 1-alpha)
+    alphas = np.arange(0.025, 1, 0.025)
+    for alpha in alphas:
+        print(f"{alpha} -> {np.quantile(cal_scores, q = 1-alpha)}") 
 
     os.makedirs("experiments", exist_ok=True)
     with open(os.path.join("experiments", f"{setup}.pkl"), "wb") as f:

@@ -139,10 +139,11 @@ def init_system(mult_noise_method, noise, C, K_0):
 
 def get_optimizer(K_size, K_steps):
     return PolicyGradientOptions(epsilon=(1e-2) * K_size,
+                                    C_epsilon=1e-4,
                                     eta=1e-3,
-                                    C_eta=5e-4,
+                                    C_eta=5e-5,
                                     max_iters=K_steps,
-                                    max_C_iters=5_000,
+                                    max_C_iters=10,
                                     disp_stride=1,
                                     keep_hist=True,
                                     opt_method='proximal',
@@ -274,7 +275,7 @@ def crc(C_hat, q_hat):
         robust_system_init = init_system("random", "none", C_hat, np.zeros(K_shape))
         K_star     = robust_system_init.Kare # initial with nominal ARE solution 
         robust_pgo = get_optimizer(np.prod(K_shape), 1) # optimization for K is done in single steps to give correct gradients
-        opt_steps  = 200
+        opt_steps  = 10
         for opt_step in range(opt_steps):
             print(f"Step: {opt_step}")
             
@@ -305,7 +306,7 @@ def get_ctrls(args):
     Ai = np.transpose(get_noise_matrices("random", n, n, p), (2, 0, 1))
     Q = np.eye(A.shape[-1])
     R = np.eye(B.shape[-1])
-    eta_bar = np.ones(p) * .1
+    eta_bar = np.ones(p) * 5
     
     try:
         K1, _ = algo1(A_hat, B_hat, Ai, Q, R, eta_bar)
@@ -341,7 +342,7 @@ def get_ctrls(args):
                 ctrls[ctrl_name] = None
 
     # proposed conformal control method
-    ctrls["crc"] = crc(C_hat, q_hat)
+    ctrls["crc"] = crc(C_hat, q_hat / 100)
     return ctrls
 
 if __name__ == "__main__":
