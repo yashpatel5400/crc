@@ -475,7 +475,7 @@ if __name__ == "__main__":
     }
 
     # HACK: not sure why, but load pos setup results in poorer A_hat/B_hat estimation?
-    gen_train, gen_test = (2_000, 1_000) if setup != "load_pos" else (20_000, 20_000)
+    gen_train, gen_test = (2_000, 1_000) if setup != "load_pos" else (20_000, 10_000)
 
     thetas, _, (A_hats, B_hats) = generate_data(setup_to_generate_func[setup], gen_train)
     N_train, N_cal = (int(len(thetas) * 0.80), int(len(thetas) * 0.20))

@@ -108,7 +108,7 @@ def mask_pval_table(ttest_df, alpha=0.05):
         for idx in masked.index:
             val = masked.at[idx, col]
             if val == "---" or val is None:
-                masked.at[idx, col] = "0.0000"
+                masked.at[idx, col] = "\\textbf{0.0000}"
                 continue
             try:
                 # Strip bold markers if present
