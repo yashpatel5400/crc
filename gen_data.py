@@ -451,6 +451,7 @@ def generate_data(generate_dynamics_matrices, n_pts):
         np.linalg.norm(A_hats - As, ord="fro", axis=(1,2)) < thresh,
         np.linalg.norm(B_hats - Bs, ord="fro", axis=(1,2)) < thresh,
     ))
+    print(len(valid_ind[0]))
     thetas, As, Bs, A_hats, B_hats = thetas[valid_ind], As[valid_ind], Bs[valid_ind], A_hats[valid_ind], B_hats[valid_ind]
 
     thetas         = torch.from_numpy(thetas).to(torch.float32).to(device)
@@ -474,7 +475,7 @@ if __name__ == "__main__":
     }
 
     # HACK: not sure why, but load pos setup results in poorer A_hat/B_hat estimation?
-    gen_train, gen_test = (2_000, 1_000) if setup != "load_pos" else (20_000, 25_000)
+    gen_train, gen_test = (2_000, 1_000) if setup != "load_pos" else (20_000, 20_000)
 
     thetas, _, (A_hats, B_hats) = generate_data(setup_to_generate_func[setup], gen_train)
     N_train, N_cal = (int(len(thetas) * 0.80), int(len(thetas) * 0.20))
