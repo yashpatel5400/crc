@@ -113,8 +113,8 @@ if __name__ == "__main__":
         "airfoil":  25,
         "load_pos": 25,
         "pendulum": 25,
-        "battery":  1_500,
-        "fusion":   1_000,
+        "battery":  2_000,
+        "fusion":   2_000,
     }
 
     net = ContextualLQR(thetas_train.shape[1:], tuple(As_train.shape[1:]), tuple(Bs_train.shape[1:])).to(device)

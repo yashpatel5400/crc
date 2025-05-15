@@ -180,7 +180,7 @@ battery_means = {
     "Ct5": 1.0
 }
 
-battery_std_scale = 1.5
+battery_std_scale = 2.5
 battery_std_devs = {key: value / battery_std_scale for key, value in battery_means.items()}
 
 def battery_generate_dynamics_matrices(num_samples):

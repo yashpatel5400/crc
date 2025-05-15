@@ -71,7 +71,7 @@ def populate_results(cfg, controller_trials, raw_setup, optimal_values_df, perce
         optimal_values_df.at[alg_table_name, setup] = val
         percent_filter_df.at[alg_table_name, setup] = f"{percent_inf:.3f}"
 
-def mask_and_bold(opt_df, pct_df, threshold=0.75):
+def mask_and_bold(opt_df, pct_df, threshold=0.80):
     masked_df = opt_df.copy()
 
     for col in masked_df.columns:
@@ -84,7 +84,7 @@ def mask_and_bold(opt_df, pct_df, threshold=0.75):
                 masked_df.at[idx, col] = "---"
 
     for col in masked_df.columns:
-        best_val = -np.inf
+        best_val = np.inf
         best_idx = None
         for idx in masked_df.index:
             val = masked_df.at[idx, col]
@@ -92,7 +92,7 @@ def mask_and_bold(opt_df, pct_df, threshold=0.75):
                 continue
             try:
                 numeric_val = float(val.split()[0])
-                if numeric_val > best_val:
+                if numeric_val < best_val:
                     best_val = numeric_val
                     best_idx = idx
             except ValueError:
@@ -102,24 +102,31 @@ def mask_and_bold(opt_df, pct_df, threshold=0.75):
 
     return masked_df
 
-def mask_pval_table(ttest_df, alpha=0.05):
+def mask_pval_table(ttest_df, pct_df, threshold=0.80, alpha=0.05):
     masked = ttest_df.copy()
     for col in masked.columns:
         for idx in masked.index:
+            try:
+                # Mask if the invalid sample percent is above threshold
+                if float(pct_df.at[idx, col]) > threshold:
+                    masked.at[idx, col] = "---"
+                    continue
+            except Exception:
+                masked.at[idx, col] = "---"
+                continue
+
             val = masked.at[idx, col]
             if val == "---" or val is None:
-                masked.at[idx, col] = "\\textbf{0.0000}"
+                masked.at[idx, col] = "---"
                 continue
             try:
-                # Strip bold markers if present
-                stripped = val.replace("\\textbf{", "").replace("}", "")
-                p = float(stripped)
+                p = float(val.replace("\\textbf{", "").replace("}", ""))
                 if p < alpha:
                     masked.at[idx, col] = f"\\textbf{{{p:.4f}}}"
                 else:
                     masked.at[idx, col] = f"{p:.4f}"
             except:
-                masked.at[idx, col] = "\\textbf{0.0000}"
+                masked.at[idx, col] = "---"
     return masked
 
 def paired_ttest_crc_vs(method_name, controller_trials, cfg):
@@ -208,7 +215,7 @@ if __name__ == "__main__":
             ttest_df.at[label_to_table_name[method], setup_label] = format_pval(p_val)
 
     masked_optimal_df = mask_and_bold(optimal_values_df, percent_filter_df)
-    masked_ttest_df = mask_pval_table(ttest_df)
+    masked_ttest_df = mask_pval_table(ttest_df, percent_filter_df)
     num_cols = len(masked_optimal_df.columns)
     print(masked_optimal_df.to_latex(escape=False, column_format='l' + 'c' * num_cols))
     print(percent_filter_df.to_latex(column_format='l' + 'c' * num_cols))
