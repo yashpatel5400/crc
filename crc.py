@@ -247,8 +247,8 @@ def generate_hinf_weights(C):
     weights['conservative'] = (W_x_conservative, W_u_conservative)
 
     # Scenario 3: Balanced performance
-    W_x_balanced = 5 * np.eye(n)
-    W_u_balanced = 5 * np.eye(m)
+    W_x_balanced = 10 * np.eye(n)
+    W_u_balanced = 10 * np.eye(m)
     weights['balanced'] = (W_x_balanced, W_u_balanced)
 
     return weights
@@ -320,12 +320,9 @@ def get_ctrls(args):
     except:
         ctrls["mult_alg2"] = None
         
-    # baseline from: standard h-infinity control
-    weights = generate_hinf_weights(C_hat)
-    for weight_profile in weights:
-        ctrl_name = f"hinf_{weight_profile}"
-        (W_x, W_u) = weights[weight_profile]
-        ctrls[ctrl_name] = hinf_weighted_bisection(C_hat, W_x=W_x, W_u=W_u)
+    # NOTE: we supported different control/state weighting in H_inf but here just consider the balanced weighting
+    W_x, W_u = generate_hinf_weights(C)['balanced']
+    ctrls["hinf"] = hinf_weighted_bisection(C_hat, W_x, W_u)
         
     # baselines from: "Learning optimal controllers for linear systems with multiplicative noise via policy gradient"
     for mult_noise_method in ["random", "rowcol"]:
