@@ -4,6 +4,7 @@ import os
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,6 +13,16 @@ import seaborn as sns
 from pydmd import DMDc
 
 device = "cuda"
+
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 class ContextualLQR(nn.Module):
     def __init__(self, theta_shape, A_shape, B_shape):
@@ -91,6 +102,8 @@ def plot_calibration(setup, cal_scores, test_scores):
     plt.title(r"$\mathrm{" + setup + r"}$")
 
 if __name__ == "__main__":
+    seed_everything(0)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup")
     args = parser.parse_args()
@@ -136,6 +149,8 @@ if __name__ == "__main__":
             "test_C": test_Cs, 
             "test_C_hat": test_C_hats,
             "q_hat": q_hat,
+            "cal_scores": cal_scores,
+            "test_scores": test_scores,
         }, f)
 
     plot_titles = {

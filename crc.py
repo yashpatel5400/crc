@@ -1,10 +1,12 @@
 import argparse
 import cvxpy as cp
+import time
 import os
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import random
 from scipy.linalg import solve_discrete_are, inv, eigvals
 import multiprocessing
 import torch
@@ -12,6 +14,16 @@ import torch
 from polgrad.policygradient import PolicyGradientOptions, run_policy_gradient, run_dynamics_gradient, Regularizer
 from polgrad.ltimult import LQRSysMult, dare_mult, dlyap_mult
 from polgrad.robust import algo1, algo2
+
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def get_noise_matrices(mult_noise_method, n, m, p):
     if mult_noise_method == 'random':
@@ -298,51 +310,77 @@ def get_ctrls(args):
     PGO = get_optimizer(np.prod(K_shape), K_steps=1_000)
 
     ctrls = {}
+    times = {} # Dictionary to store timing information
+
+    # --- Optimal Controller ---
+    start_time = time.time()
     ctrls["optimal"] = init_system("random", "none", C, np.zeros(K_shape)).Kare
+    times["optimal"] = time.time() - start_time
+
+    # --- Nominal Controller ---
+    start_time = time.time()
     ctrls["nominal"] = init_system("random", "none", C_hat, np.zeros(K_shape)).Kare
+    times["nominal"] = time.time() - start_time
     
-    # baseline from: "Robust control design for linear systems via multiplicative noise"
+    # Baseline from: "Robust control design for linear systems via multiplicative noise"
     p = 5
     Ai = np.transpose(get_noise_matrices("random", n, n, p), (2, 0, 1))
     Q = np.eye(A.shape[-1])
     R = np.eye(B.shape[-1])
     eta_bar = np.ones(p) * 5
     
+    # --- Multiplicative Noise Algorithm 1 ---
+    start_time = time.time()
     try:
         K1, _ = algo1(A_hat, B_hat, Ai, Q, R, eta_bar)
         ctrls["mult_alg1"] = K1
     except:
         ctrls["mult_alg1"] = None
+    times["mult_alg1"] = time.time() - start_time
     
+    # --- Multiplicative Noise Algorithm 2 ---
+    start_time = time.time()
     try:
         K2, _ = algo2(A_hat, B_hat, Ai, Q, R, eta_bar)
         ctrls["mult_alg2"] = K2
     except:
         ctrls["mult_alg2"] = None
+    times["mult_alg2"] = time.time() - start_time
         
+    # --- H-infinity Controller ---
     # NOTE: we supported different control/state weighting in H_inf but here just consider the balanced weighting
     W_x, W_u = generate_hinf_weights(C)['balanced']
+    start_time = time.time()
     ctrls["hinf"] = hinf_weighted_bisection(C_hat, W_x, W_u)
+    times["hinf"] = time.time() - start_time
         
-    # baselines from: "Learning optimal controllers for linear systems with multiplicative noise via policy gradient"
+    # Baselines from: "Learning optimal controllers for linear systems with multiplicative noise via policy gradient"
     for mult_noise_method in ["random", "rowcol"]:
         for noise in ["critical", "olmss_weak", "olmsus"]:
             ctrl_name = f"{mult_noise_method}-{noise}"
             if ctrls["nominal"] is None:
                 ctrls[ctrl_name] = None
+                times[ctrl_name] = 0.0 # No time elapsed if skipped
                 continue
             
             SS = init_system(mult_noise_method, noise, C_hat, ctrls["nominal"])
+            start_time = time.time()
             try:
                 ctrls[ctrl_name] = run_policy_gradient(SS, PGO)
             except:
                 ctrls[ctrl_name] = None
+            times[ctrl_name] = time.time() - start_time
 
-    # proposed conformal control method
+    # --- Conformal Robust Control (CRC) ---
+    start_time = time.time()
     ctrls["crc"] = crc(C_hat, q_hat / 100)
-    return ctrls
+    times["crc"] = time.time() - start_time
+    
+    return ctrls, times
 
 if __name__ == "__main__":
+    seed_everything(0)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup")
     args = parser.parse_args()
@@ -354,11 +392,12 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(f"results", setup), exist_ok=True)
     workers = 50
     pool = multiprocessing.Pool(workers)
-    controllers = list(pool.map(
+    results = list(pool.map(
        get_ctrls,
        [(cfg["test_C"][C_idx], cfg["test_C_hat"][C_idx], cfg["q_hat"], setup, C_idx) for C_idx in range(len(cfg["test_C"]))]
     ))
+    print(results)
 
     os.makedirs("results", exist_ok=True)
     with open(os.path.join(f"results", f"{setup}.pkl"), "wb") as f:
-        pickle.dump(controllers, f)
+        pickle.dump(results, f)

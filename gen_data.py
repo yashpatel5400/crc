@@ -4,6 +4,7 @@ import os
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,7 +15,15 @@ from pydmd import DMDc
 
 device = "cuda"
 
-np.random.seed(0)
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def load_pos_generate_dynamics_matrices(num_samples):
     # Sample from the reparameterized variable ranges
@@ -461,6 +470,8 @@ def generate_data(generate_dynamics_matrices, n_pts):
     return thetas, (As, Bs), (A_hats, B_hats)
 
 if __name__ == "__main__":
+    seed_everything(0)
+    
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup")
     args = parser.parse_args()

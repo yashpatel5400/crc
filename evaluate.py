@@ -31,7 +31,7 @@ label_to_table_name = {
 def populate_results(cfg, controller_trials, raw_setup, optimal_values_df, percent_filter_df):
     controller_evals = []
     for trial_idx in range(len(controller_trials)):
-        controllers = controller_trials[trial_idx]
+        controllers = controller_trials[trial_idx][0] # output is controllers, times (just want controllers now)
         evals = {}
         for controller in controllers:
             if controllers[controller] is None:
@@ -134,7 +134,7 @@ def paired_ttest_crc_vs(method_name, controller_trials, cfg):
     method_gaps = []
 
     for trial_idx in range(len(controller_trials)):
-        controllers = controller_trials[trial_idx]
+        controllers = controller_trials[trial_idx][0]
 
         if "optimal" not in controllers or "crc" not in controllers or method_name not in controllers:
             continue
