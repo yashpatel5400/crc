@@ -14,6 +14,7 @@ import seaborn as sns
 from pydmd import DMDc
 
 device = "cuda"
+DEFAULT_SEED = 0
 
 def seed_everything(seed):
     random.seed(seed)
@@ -24,6 +25,9 @@ def seed_everything(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+# Seed immediately so any module-level randomness below is deterministic across runs
+seed_everything(DEFAULT_SEED)
 
 def load_pos_generate_dynamics_matrices(num_samples):
     # Sample from the reparameterized variable ranges
@@ -470,7 +474,7 @@ def generate_data(generate_dynamics_matrices, n_pts):
     return thetas, (As, Bs), (A_hats, B_hats)
 
 if __name__ == "__main__":
-    seed_everything(0)
+    seed_everything(DEFAULT_SEED)
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup")

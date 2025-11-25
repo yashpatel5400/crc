@@ -15,6 +15,8 @@ from polgrad.policygradient import PolicyGradientOptions, run_policy_gradient, r
 from polgrad.ltimult import LQRSysMult, dare_mult, dlyap_mult
 from polgrad.robust import algo1, algo2
 
+DEFAULT_SEED = 0
+
 def seed_everything(seed):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -24,6 +26,11 @@ def seed_everything(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+def _seed_worker(base_seed):
+    worker = multiprocessing.current_process()
+    worker_idx = worker._identity[0] if worker._identity else 0
+    seed_everything(base_seed + worker_idx)
 
 def get_noise_matrices(mult_noise_method, n, m, p):
     if mult_noise_method == 'random':
@@ -300,9 +307,9 @@ def crc(C_hat, q_hat):
         return K_star
     except:
         return None # if prediction region is too large, GDA falls outside stabilizing region
-    
 def get_ctrls(args):
-    C, C_hat, q_hat, setup, C_idx = args
+    C, C_hat, q_hat, setup, C_idx, base_seed = args
+    seed_everything(base_seed + C_idx)  # make each instance deterministic regardless of worker scheduling
     n, _ = C_hat.shape
     A, B = C[:,:n], C[:,n:]
     A_hat, B_hat = C_hat[:,:n], C_hat[:,n:]
@@ -379,25 +386,31 @@ def get_ctrls(args):
     return ctrls, times
 
 if __name__ == "__main__":
-    seed_everything(0)
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup")
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     args = parser.parse_args()
     setup = args.setup
+    base_seed = args.seed
+
+    seed_everything(base_seed)
 
     with open(os.path.join(f"experiments", f"{setup}.pkl"), "rb") as f:
         cfg = pickle.load(f)
 
-    os.makedirs(os.path.join(f"results", setup), exist_ok=True)
+    os.makedirs("results", exist_ok=True)
+    os.makedirs(os.path.join("results", setup), exist_ok=True)
     workers = 50
-    pool = multiprocessing.Pool(workers)
-    results = list(pool.map(
-       get_ctrls,
-       [(cfg["test_C"][C_idx], cfg["test_C_hat"][C_idx], cfg["q_hat"], setup, C_idx) for C_idx in range(len(cfg["test_C"]))]
-    ))
+    with multiprocessing.Pool(
+        workers,
+        initializer=_seed_worker,
+        initargs=(base_seed,),
+    ) as pool:
+        results = list(pool.map(
+           get_ctrls,
+           [(cfg["test_C"][C_idx], cfg["test_C_hat"][C_idx], cfg["q_hat"], setup, C_idx, base_seed) for C_idx in range(len(cfg["test_C"]))]
+        ))
     print(results)
 
-    os.makedirs("results", exist_ok=True)
     with open(os.path.join(f"results", f"{setup}.pkl"), "wb") as f:
         pickle.dump(results, f)
