@@ -1,4 +1,24 @@
-# CRC (Conformalized Robust Control)
+<h1 align='center'>Conformal Robust Control of Linear Systems</h1>
+
+<div align='center'>
+    <a href='https://ypatel.io/' target='_blank'>Yash Patel</a><sup>1</sup>&emsp;
+    <a href='https://srayan00.github.io/' target='_blank'>Sahana Rayan</a>&emsp;;
+    <a href='https://www.ambujtewari.com/' target='_blank'>Ambuj Tewari</a><sup>2</sup>&emsp;
+</div>
+
+<div align='center'>
+Department of Statistics, University of Michigan.
+</div>
+
+<p align='center'>
+    <sup>2</sup>Senior investigator
+</p>
+<div align='center'>
+    <a href='https://arxiv.org/abs/2405.16250'><img src='https://img.shields.io/badge/Paper-Arxiv-red'></a>
+    <a href='https://openreview.net/attachment?id=rdsOb7q6mw&name=pdf'><img src='https://img.shields.io/badge/Paper-AISTATS026-blue'></a>
+</div>
+
+## Instructions
 The code is primarily broken into the following files and builds upon the tremendous work in https://github.com/TSummersLab/polgrad-multinoise:
 - `gen_data.py`: Generates synthetic trajectories under LTI systems with random gain matrices; extracts estimates with DMDc
 - `train.py`: Train a contextual LTI predictor model; conformalize against a held-out subset of the observations
@@ -25,8 +45,18 @@ have been defined, they can be evaluated (to obtain the respective regrets) usin
 python evaluate.py --setup airfoil
 ```
 
-## Extending CRC
-To extend CRC, there are a number of directions of interest, as discussed in the paper. These include extensions to nonlinear dynamical
-systems (using Koopman operators or neural operators) and applying the methods here to real engineering systems of interest in control co-design loops.
-For these purposes, the main entrypoint for extension is `gen_data.py`: by adding a new synthetic environment or experimentally observed
-trajectory data, a new system can directly be integrated into the workflow.
+## ⚖️ Disclaimer
+This project is intended for academic research, and we explicitly disclaim any responsibility for user-generated content. Users are solely liable for their actions while using the generative model. The project contributors have no legal affiliation with, nor accountability for, users' behaviors. It is imperative to use the generative model responsibly, adhering to both ethical and legal standards.
+
+## &#x1F4D2; Citation
+
+If you find our work useful for your research, please consider citing the paper :
+
+```
+@article{patel2024conformal,
+  title={Conformal robust control of linear systems},
+  author={Patel, Yash and Rayan, Sahana and Tewari, Ambuj},
+  journal={arXiv preprint arXiv:2405.16250},
+  year={2024}
+}
+```
